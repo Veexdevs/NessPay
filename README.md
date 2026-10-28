@@ -1,58 +1,69 @@
 # NessPay — Dashboard
 
-Painel **preto e branco** para o **NessPay**, bot de vendas pagas no Discord.
-React + TypeScript + Vite + Tailwind + Recharts. Estética brutalista/monocromática com o logo em cromo.
+Painel **preto e branco** do **NessPay**, bot de vendas pagas no Discord.
+React + TypeScript + Vite + Tailwind + Recharts. Fontes: **Unbounded** (títulos), Space Grotesk (interface), JetBrains Mono (números).
 
-![logo](public/assets/nesspay-logo.jpg)
+> **Sem dados falsos.** Nada de "100 vendas no mês" inventado: todo número vem dos pedidos da API ou do que você mesmo cadastra. Sem API, os campos ficam vazios (`—`) com estado vazio explicando o porquê.
 
 ## Rodando
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # build de produção em dist/
+cp .env.example .env     # preencha VITE_DISCORD_CLIENT_ID
+npm run dev              # http://localhost:5173
+npm run build            # build de produção em dist/
 ```
 
-## Telas
+## Fluxo de acesso (3 etapas, obrigatórias)
 
-| Rota | Tela | O que tem |
-| --- | --- | --- |
-| `/` | Visão geral | KPIs, gráfico de receita 30d, mix de pagamento/categoria, últimas vendas, feed de atividade, saúde do bot |
-| `/vendas` | Vendas | Tabela com busca + filtros (status/método), export CSV, modal com timeline do pedido |
-| `/produtos` | Produtos | Grid de cards, toggle ativo/pausado, estoque, entrega automática, criação de produto |
-| `/clientes` | Clientes | Base com tier (novo/recorrente/VIP), modal com histórico de compras |
-| `/cupons` | Cupons | CRUD visual, limite de usos, validade, regras de desconto |
-| `/tickets` | Tickets | Lista + thread de atendimento com resposta |
-| `/integracoes` | Integrações | Checklist de conexões e variáveis de ambiente faltando |
-| `/configuracoes` | Configurações | Prefixo, canais, automações, webhooks |
-| `/entrar` | Login | Tela de acesso com Discord OAuth (visual) |
+1. **`/entrar`** — login **obrigatório** pelo Discord (OAuth2, escopos `identify guilds`). Lê sua conta e a lista de servidores.
+2. **`/chave`** — tela da **Key de licença** (formato `XXXX-XXXX-XXXX-XXXX`), a que você recebe ao comprar o bot.
+   - A validação real ainda não existe no backend, então o botão **Verificar Key libera o acesso mesmo sem Key** — como você pediu. Quando o endpoint `POST /api/license/verify` existir, é só trocar a função `submit()` em `src/pages/auth/KeyGate.tsx`.
+3. **`/servidores`** — lista **apenas** servidores onde você é dono, administrador ou tem "Gerenciar servidor". Cada card tem o botão **Gerenciar**.
 
-> **Todos os dados são mock** (`src/data/mock.ts`). O painel é 100% front-end por enquanto.
+Depois disso você cai em **`/app/:guildId/...`**, com o painel escopado naquele servidor (seletor de servidor na sidebar).
+
+## Telas do painel
+
+| Rota | Tela |
+| --- | --- |
+| `/app/:id` | Visão geral: KPIs reais, receita 30d, métodos/categorias, últimas vendas, checklist de ativação |
+| `/app/:id/vendas` | Pedidos da API com busca, filtros, export CSV e detalhe |
+| `/app/:id/produtos` | Cadastro/edição/remoção de produtos (nome, descrição, categoria, preço, estoque, entrega automática) |
+| `/app/:id/clientes` | Clientes derivados dos pedidos pagos com tier e histórico |
+| `/app/:id/cupons` | Criação e gestão de cupons (% ou valor fixo, limite de usos, validade) |
+| `/app/:id/tickets` | Tickets vindos da API |
+| `/app/:id/integracoes` | Estado **real** das conexões (OAuth, Key, API) e o que é "não verificável" |
+| `/app/:id/configuracoes` | Prefixo, canais, moeda, automações — salvos por servidor |
+
+## Onde os dados ficam hoje
+
+| Dado | Origem |
+| --- | --- |
+| Produtos, cupons, configurações | `localStorage`, por servidor (`nesspay:db:<guildId>`) |
+| Servidores e usuário | Discord OAuth2 (real) |
+| Vendas, clientes, tickets | `GET {VITE_API_URL}/orders` e `/tickets` — **vazio** até o backend existir |
+
+## O que falta para ficar 100% real
+
+1. **Discord OAuth2**: crie a aplicação em [Developer Portal](https://discord.com/developers/applications), adicione o redirect `https://SEU-DOMINIO/auth/callback` e coloque o Client ID em `VITE_DISCORD_CLIENT_ID`.
+2. **Backend da API** com: `GET /orders`, `GET /tickets`, `POST /license/verify`, `POST /webhooks/pagamento`, CRUD de produtos/cupons no banco.
+3. **Banco** para sair do localStorage (produtos/cupons/configurações).
+4. **Gateway de pagamento** + webhook público HTTPS.
+5. **Bot no servidor** com intents `GUILDS`, `GUILD_MESSAGES`, `MESSAGE_CONTENT`.
+
+Inventário de variáveis: [`.env.example`](.env.example) · detalhamento na tela **Integrações**.
 
 ## Estrutura
 
 ```
 src/
-├── components/     # Layout (sidebar/topbar), ui.tsx (cards, tabelas, modal), charts.tsx
-├── data/mock.ts    # dados de demonstração
-├── lib/format.ts   # formatação BRL, datas, labels
-└── pages/          # uma página por rota
+├── components/   Layout (sidebar + seletor de servidor), ui.tsx, charts.tsx
+├── lib/
+│   ├── discord.ts   OAuth implicit grant, permissões, avatares
+│   ├── session.tsx  sessão (usuário, servidores, Key) em localStorage
+│   ├── store.ts     produtos/cupons/configurações + client da API
+│   ├── metrics.ts   métricas calculadas apenas com pedidos reais
+│   └── useGuild.ts  contexto do servidor selecionado
+└── pages/        auth/ (Login, Key, Servidores) + as 8 telas do painel
 ```
-
-## O que falta conectar
-
-Tudo que é "vivo" ainda depende de backend. A ordem recomendada:
-
-1. **Discord — aplicação/bot**: `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, intents `GUILDS`, `GUILD_MESSAGES`, `MESSAGE_CONTENT`.
-2. **Discord — OAuth2** (login do painel): `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` + `DISCORD_STAFF_ROLE_ID` para checar o cargo de staff.
-3. **Banco**: Supabase (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) com tabelas `products`, `orders`, `order_items`, `coupons`, `coupon_uses`, `customers`, `tickets`, `ticket_messages`, `stock_items`, `deliveries`.
-4. **Gateway de pagamento**: Mercado Pago (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) para Pix/cartão — ou Stripe. Sem webhook validado não existe entrega automática.
-5. **Webhook público** (`PUBLIC_WEBHOOK_URL`): precisa ser HTTPS acessível pela internet — não pode ser `localhost`.
-6. **API do painel**: os endpoints abaixo ainda não existem.
-   - `GET /api/orders` · `POST /api/orders/:id/refund` · `POST /api/orders/:id/redeliver`
-   - `GET/POST/PATCH /api/products` · `GET/POST /api/coupons`
-   - `GET /api/customers` · `GET/POST /api/tickets`
-   - `POST /api/webhooks/pagamento` · `POST /api/webhooks/discord`
-7. **Canal de logs** (`DISCORD_LOG_WEBHOOK`) e **e-mail** (`RESEND_API_KEY`, opcional).
-
-Detalhes de cada variável em [`.env.example`](.env.example) e na tela `/integracoes`.

@@ -1,7 +1,10 @@
 export const brl = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
 
-export const compactBrl = (v: number) => {
+export const money = (v: number, currency = 'BRL') =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency, minimumFractionDigits: 2 })
+
+export const compactMoney = (v: number) => {
   if (Math.abs(v) >= 1000000) return `R$ ${(v / 1000000).toFixed(1).replace('.', ',')}M`
   if (Math.abs(v) >= 1000) return `R$ ${(v / 1000).toFixed(1).replace('.', ',')}k`
   return brl(v)
@@ -9,7 +12,7 @@ export const compactBrl = (v: number) => {
 
 export const num = (v: number) => v.toLocaleString('pt-BR')
 
-export const pct = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`
+export const pct = (v: number) => `${v.toFixed(1).replace('.', ',')}%`
 
 export const dateTime = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', {
@@ -41,22 +44,10 @@ export const initials = (name: string) =>
     .map((n) => n[0]?.toUpperCase())
     .join('')
 
-export const methodLabel: Record<string, string> = {
-  pix: 'Pix',
-  cartao: 'Cartão',
-  crypto: 'Cripto',
-  saldo: 'Saldo',
+export const parseMoney = (input: string) => {
+  const clean = input.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')
+  const value = Number(clean)
+  return Number.isFinite(value) ? value : 0
 }
 
-export const statusLabel: Record<string, string> = {
-  pago: 'Pago',
-  pendente: 'Pendente',
-  reembolsado: 'Reembolsado',
-  cancelado: 'Cancelado',
-  expirado: 'Expirado',
-  aberto: 'Aberto',
-  aguardando: 'Aguardando',
-  resolvido: 'Resolvido',
-  conectado: 'Conectado',
-  desconectado: 'Desconectado',
-}
+export { methodLabel, statusLabel } from './metrics'

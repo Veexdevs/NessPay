@@ -5,8 +5,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -14,23 +12,30 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { brl, compactBrl, num } from '@/lib/format'
+import { brl, num } from '@/lib/format'
+import type { DayPoint } from '@/lib/metrics'
 
-const axis = {
-  stroke: '#1f1f1f',
-  tickLine: false,
-  axisLine: false,
-} as const
+const axis = { stroke: '#1f1f1f', tickLine: false, axisLine: false } as const
+const shades = ['#ffffff', '#bdbdbd', '#7a7a7a', '#3f3f3f']
 
 function TooltipShell({ children }: { children: React.ReactNode }) {
+  return <div className="border border-ink-500 bg-black/95 px-3 py-2 shadow-[3px_3px_0_0_#000]">{children}</div>
+}
+
+/** Placeholder honesto: grade desenhada, nenhum dado inventado. */
+export function ChartEmpty({ height = 250, message = 'Sem dados para exibir' }: { height?: number; message?: string }) {
   return (
-    <div className="border border-ink-500 bg-black/95 px-3 py-2 shadow-[3px_3px_0_0_#000]">
-      {children}
+    <div className="relative flex items-center justify-center" style={{ height }}>
+      <div className="absolute inset-0 bg-grid [background-size:36px_36px] opacity-40" />
+      <div className="relative border border-dashed border-ink-600 bg-black/70 px-4 py-3 text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-400">{message}</p>
+        <p className="mt-1 text-[11px] text-ink-600">os gráficos aparecem quando existirem registros reais</p>
+      </div>
     </div>
   )
 }
 
-export function RevenueChart({ data }: { data: { label: string; receita: number; pedidos: number }[] }) {
+export function RevenueChart({ data }: { data: DayPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={250}>
       <AreaChart data={data} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
@@ -49,11 +54,11 @@ export function RevenueChart({ data }: { data: { label: string; receita: number;
           content={({ active, payload, label }) =>
             active && payload?.length ? (
               <TooltipShell>
-                <p className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-ink-400">
-                  dia {label}
+                <p className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.14em] text-ink-400">{label}</p>
+                <p className="font-display text-[15px] text-white">{brl(Number(payload[0].value))}</p>
+                <p className="mt-0.5 font-mono text-[10px] text-ink-400">
+                  {num(Number(payload[0].payload.pedidos))} pedidos
                 </p>
-                <p className="font-display text-lg text-white">{brl(Number(payload[0].value))}</p>
-                <p className="mt-0.5 font-mono text-[10px] text-ink-400">{num(Number(payload[1]?.value ?? 0))} pedidos</p>
               </TooltipShell>
             ) : null
           }
@@ -71,37 +76,12 @@ export function RevenueChart({ data }: { data: { label: string; receita: number;
   )
 }
 
-export function OrdersLineChart({ data }: { data: { label: string; pedidos: number }[] }) {
-  return (
-    <ResponsiveContainer width="100%" height={110}>
-      <LineChart data={data} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
-        <Line type="stepAfter" dataKey="pedidos" stroke="#8a8a8a" strokeWidth={1.3} dot={false} />
-        <Tooltip
-          content={({ active, payload }) =>
-            active && payload?.length ? (
-              <TooltipShell>
-                <p className="font-mono text-[11px] text-white">{num(Number(payload[0].value))} pedidos</p>
-              </TooltipShell>
-            ) : null
-          }
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  )
-}
-
 export function MethodBars({ data }: { data: { name: string; value: number }[] }) {
   return (
-    <ResponsiveContainer width="100%" height={168}>
-      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 28, left: 0, bottom: 0 }}>
-        <XAxis type="number" hide domain={[0, 70]} />
-        <YAxis
-          type="category"
-          dataKey="name"
-          {...axis}
-          width={72}
-          tick={{ fill: '#b8b8b8', fontSize: 10.5 }}
-        />
+    <ResponsiveContainer width="100%" height={150}>
+      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 32, left: 0, bottom: 0 }}>
+        <XAxis type="number" hide domain={[0, 100]} />
+        <YAxis type="category" dataKey="name" {...axis} width={72} tick={{ fill: '#b8b8b8', fontSize: 10.5 }} />
         <Tooltip
           cursor={{ fill: '#ffffff08' }}
           content={({ active, payload }) =>
@@ -114,9 +94,9 @@ export function MethodBars({ data }: { data: { name: string; value: number }[] }
             ) : null
           }
         />
-        <Bar dataKey="value" barSize={13} radius={0}>
+        <Bar dataKey="value" barSize={13}>
           {data.map((_, i) => (
-            <Cell key={i} fill={i === 0 ? '#ffffff' : i === 1 ? '#b4b4b4' : i === 2 ? '#6e6e6e' : '#3a3a3a'} />
+            <Cell key={i} fill={shades[i % shades.length]} />
           ))}
         </Bar>
       </BarChart>
@@ -125,7 +105,6 @@ export function MethodBars({ data }: { data: { name: string; value: number }[] }
 }
 
 export function CategoryDonut({ data }: { data: { name: string; value: number }[] }) {
-  const shades = ['#ffffff', '#bdbdbd', '#7a7a7a', '#3f3f3f']
   return (
     <div className="flex items-center gap-5">
       <div className="relative h-[132px] w-[132px] shrink-0">
@@ -146,22 +125,11 @@ export function CategoryDonut({ data }: { data: { name: string; value: number }[
                 <Cell key={i} fill={shades[i % shades.length]} />
               ))}
             </Pie>
-            <Tooltip
-              content={({ active, payload }) =>
-                active && payload?.length ? (
-                  <TooltipShell>
-                    <p className="font-mono text-[11px] text-white">
-                      {payload[0].name} · {payload[0].value}%
-                    </p>
-                  </TooltipShell>
-                ) : null
-              }
-            />
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-display text-[19px] leading-none text-white">100%</span>
-          <span className="mt-0.5 font-mono text-[8.5px] uppercase tracking-[0.14em] text-ink-500">mix</span>
+          <span className="font-display text-[16px] leading-none text-white">mix</span>
+          <span className="mt-1 font-mono text-[8.5px] uppercase tracking-[0.14em] text-ink-500">receita</span>
         </div>
       </div>
       <ul className="flex-1 space-y-2">
@@ -176,20 +144,3 @@ export function CategoryDonut({ data }: { data: { name: string; value: number }[
     </div>
   )
 }
-
-export function MiniBars({ data }: { data: number[] }) {
-  const max = Math.max(...data, 1)
-  return (
-    <div className="flex h-10 items-end gap-[3px]">
-      {data.map((v, i) => (
-        <div
-          key={i}
-          className="w-[5px] bg-ink-500 transition-colors hover:bg-white"
-          style={{ height: `${Math.max(10, (v / max) * 100)}%`, opacity: 0.4 + (i / data.length) * 0.6 }}
-        />
-      ))}
-    </div>
-  )
-}
-
-export const fmtAxis = compactBrl

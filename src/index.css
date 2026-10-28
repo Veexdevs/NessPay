@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -53,8 +53,16 @@
 @layer components {
   /* ---------- Tipografia ---------- */
   .font-display {
-    font-family: 'Anton', Impact, sans-serif;
-    letter-spacing: 0.01em;
+    font-family: 'Unbounded', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .display-tight {
+    font-family: 'Unbounded', system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 0.94;
   }
 
   .outline-type {
@@ -125,8 +133,8 @@
   .btn-ghost {
     @apply btn border-ink-600 bg-transparent text-ink-200 hover:border-white hover:text-white;
   }
-  .btn-danger {
-    @apply btn border-ink-500 bg-transparent text-white hover:bg-white hover:text-black;
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-40;
   }
 
   /* ---------- Inputs ---------- */

@@ -1,51 +1,86 @@
 import { useState } from 'react'
-import { Boxes, Plus, Search, Trash2, Zap } from 'lucide-react'
-import { Card, CardHeader, CopyButton, Meter, Modal, StatCard, Switch, useToast } from '@/components/ui'
-import { products as seed, type Product } from '@/data/mock'
-import { brl, compactBrl, num } from '@/lib/format'
+import { Package, Pencil, Plus, Search, Trash2, Zap } from 'lucide-react'
+import { Card, CardHeader, CopyButton, EmptyState, Meter, Modal, StatCard, Switch, useToast } from '@/components/ui'
+import { useGuild } from '@/lib/useGuild'
+import type { Product, ProductCategory } from '@/lib/store'
+import { brl, num, parseMoney } from '@/lib/format'
+
+const categories: ProductCategory[] = ['Assinaturas', 'Contas', 'Boosts', 'Scripts', 'Outros']
+
+const emptyDraft = {
+  name: '',
+  description: '',
+  category: 'Assinaturas' as ProductCategory,
+  price: '',
+  stock: '',
+  autoDelivery: true,
+}
 
 export default function Products() {
-  const [items, setItems] = useState<Product[]>(seed)
+  const { products, addProduct, updateProduct, removeProduct, metrics } = useGuild()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Product | null>(null)
+  const [draft, setDraft] = useState(emptyDraft)
+  const [confirmDelete, setConfirmDelete] = useState<Product | null>(null)
   const { toast, toastNode } = useToast()
-  const [draft, setDraft] = useState({ name: '', category: 'Assinaturas', price: '', stock: '', autoDelivery: true })
 
-  const filtered = items.filter((p) => `${p.name} ${p.category} ${p.id}`.toLowerCase().includes(q.toLowerCase()))
-  const revenue = items.reduce((s, p) => s + p.revenue, 0)
+  const filtered = products.filter((p) =>
+    `${p.name} ${p.category} ${p.description}`.toLowerCase().includes(q.toLowerCase()),
+  )
+  const soldById = new Map(metrics.productRevenue.map((p) => [p.id, p]))
 
-  const addProduct = () => {
-    if (!draft.name || !draft.price) return
-    const p: Product = {
-      id: `PRD-${String(items.length + 1).padStart(3, '0')}`,
-      name: draft.name,
-      category: draft.category,
-      price: Number(draft.price),
-      stock: Number(draft.stock) || 0,
-      sold: 0,
-      deliveries: 0,
-      active: true,
-      autoDelivery: draft.autoDelivery,
-      revenue: 0,
-      emoji: '🆕',
-    }
-    setItems([p, ...items])
-    setOpen(false)
-    setDraft({ name: '', category: 'Assinaturas', price: '', stock: '', autoDelivery: true })
-    toast('Produto criado (demonstração)')
+  const openNew = () => {
+    setEditing(null)
+    setDraft(emptyDraft)
+    setOpen(true)
   }
+
+  const openEdit = (p: Product) => {
+    setEditing(p)
+    setDraft({
+      name: p.name,
+      description: p.description,
+      category: p.category,
+      price: p.price.toFixed(2).replace('.', ','),
+      stock: String(p.stock),
+      autoDelivery: p.autoDelivery,
+    })
+    setOpen(true)
+  }
+
+  const submit = () => {
+    if (!draft.name.trim()) {
+      toast('Dê um nome ao produto')
+      return
+    }
+    const payload = {
+      name: draft.name.trim(),
+      description: draft.description.trim(),
+      category: draft.category,
+      price: parseMoney(draft.price),
+      stock: Number(draft.stock.replace(/\D/g, '')) || 0,
+      autoDelivery: draft.autoDelivery,
+    }
+    if (editing) {
+      updateProduct(editing.id, payload)
+      toast('Produto atualizado')
+    } else {
+      addProduct(payload)
+      toast('Produto cadastrado')
+    }
+    setOpen(false)
+  }
+
+  const totalStock = products.reduce((s, p) => s + p.stock, 0)
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Produtos ativos" value={num(items.filter((p) => p.active).length)} hint={`${items.length} no total`} />
-        <StatCard label="Receita do catálogo" value={compactBrl(revenue)} delta={6.4} />
-        <StatCard label="Entregas automáticas" value={num(items.filter((p) => p.autoDelivery).length)} hint="sem intervenção" />
-        <StatCard
-          label="Sem estoque"
-          value={num(items.filter((p) => p.stock === 0).length)}
-          hint="repor agora"
-        />
+        <StatCard label="Produtos" value={num(products.length)} hint={products.length ? 'cadastrados neste servidor' : 'cadastre o primeiro'} />
+        <StatCard label="Ativos" value={num(products.filter((p) => p.active).length)} hint="visíveis no bot" />
+        <StatCard label="Unidades em estoque" value={num(totalStock)} hint="soma dos produtos" />
+        <StatCard label="Com entrega automática" value={num(products.filter((p) => p.autoDelivery).length)} hint="envio no DM" />
       </div>
 
       <Card padded={false}>
@@ -54,121 +89,141 @@ export default function Products() {
             <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar produto…" className="field pl-9" />
           </div>
-          <button className="btn-primary" onClick={() => setOpen(true)}>
+          <button className="btn-primary" onClick={openNew}>
             <Plus size={13} /> Novo produto
           </button>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((p) => (
-            <div key={p.id} className="group relative border border-ink-700 bg-ink-900/60 p-4 transition-colors hover:border-white">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center border border-ink-600 bg-black text-[15px]">
-                    {p.emoji}
-                  </span>
-                  <div>
-                    <p className="text-[13px] font-medium leading-tight text-white">{p.name}</p>
-                    <p className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-500">
-                      {p.id} · {p.category}
-                    </p>
+        {filtered.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<Package size={16} />}
+              title={products.length ? 'Nenhum produto com esse nome' : 'Nenhum produto cadastrado'}
+              hint={
+                products.length
+                  ? 'Tente outro termo de busca.'
+                  : 'Cadastre o que você vende: nome, preço, estoque e se a entrega é automática. Fica salvo neste servidor.'
+              }
+              action={
+                products.length ? undefined : (
+                  <button className="btn-primary" onClick={openNew}>
+                    <Plus size={13} /> Cadastrar produto
+                  </button>
+                )
+              }
+            />
+          </div>
+        ) : (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((p) => {
+              const sold = soldById.get(p.id)
+              return (
+                <div key={p.id} className="group relative border border-ink-700 bg-ink-900/60 p-4 transition-colors hover:border-white">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium leading-tight text-white">{p.name}</p>
+                      <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-500">
+                        {p.category} · {p.id}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={p.active}
+                      onChange={(v) => {
+                        updateProduct(p.id, { active: v })
+                        toast(v ? 'Produto ativado' : 'Produto pausado')
+                      }}
+                    />
+                  </div>
+
+                  {p.description && (
+                    <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-ink-400">{p.description}</p>
+                  )}
+
+                  <div className="mt-3 flex items-end justify-between">
+                    <div>
+                      <p className="font-display text-[20px] leading-none text-white">{brl(p.price)}</p>
+                      <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-500">
+                        {sold && sold.sold > 0 ? `${num(sold.sold)} vendidos` : 'sem vendas ainda'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-[11.5px] text-ink-200">{p.stock > 0 ? num(p.stock) : '0'}</p>
+                      <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-600">estoque</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5">
+                    <Meter value={Math.min(p.stock, 100)} max={100} />
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-1.5 border-t border-ink-800 pt-2.5">
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="flex items-center gap-1 border border-ink-700 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-300 transition-colors hover:border-white hover:text-white"
+                    >
+                      <Pencil size={9} /> editar
+                    </button>
+                    <CopyButton value={p.id} label="id" />
+                    {p.autoDelivery && (
+                      <span className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.1em] text-ink-500">
+                        <Zap size={9} /> auto
+                      </span>
+                    )}
+                    <button
+                      className="ml-auto p-1 text-ink-600 transition-colors hover:text-white"
+                      aria-label="Remover produto"
+                      onClick={() => setConfirmDelete(p)}
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 </div>
-                <Switch
-                  checked={p.active}
-                  onChange={(v) => {
-                    setItems(items.map((x) => (x.id === p.id ? { ...x, active: v } : x)))
-                    toast(v ? 'Produto ativado' : 'Produto pausado')
-                  }}
-                />
-              </div>
-
-              <div className="mt-3.5 flex items-end justify-between">
-                <div>
-                  <p className="font-display text-[24px] leading-none text-white">{brl(p.price)}</p>
-                  <p className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-500">
-                    {num(p.sold)} vendidos
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-[12px] text-ink-200">{compactBrl(p.revenue)}</p>
-                  <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-600">receita</p>
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <div className="mb-1 flex items-center justify-between font-mono text-[9.5px] uppercase tracking-[0.1em]">
-                  <span className={p.stock === 0 ? 'text-white' : 'text-ink-500'}>
-                    {p.stock === 0 ? 'esgotado' : `${num(p.stock)} em estoque`}
-                  </span>
-                  {p.autoDelivery ? (
-                    <span className="flex items-center gap-1 text-ink-300">
-                      <Zap size={9} /> auto
-                    </span>
-                  ) : (
-                    <span className="text-ink-600">manual</span>
-                  )}
-                </div>
-                <Meter value={Math.min(p.stock, 200)} max={200} />
-              </div>
-
-              <div className="mt-3 flex items-center gap-1.5 border-t border-ink-800 pt-2.5">
-                <CopyButton value={p.id} label="copiar id" />
-                <button
-                  className="border border-ink-700 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-400 transition-colors hover:border-white hover:text-white"
-                  onClick={() => toast('Editor de produto em breve')}
-                >
-                  editar
-                </button>
-                <button
-                  className="ml-auto p-1 text-ink-600 transition-colors hover:text-white"
-                  aria-label="Remover"
-                  onClick={() => {
-                    setItems(items.filter((x) => x.id !== p.id))
-                    toast('Produto removido')
-                  }}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </Card>
 
       <Card>
         <CardHeader
-          title="Estoque e entregas"
-          subtitle="produtos com entrega manual precisam de atenção do staff"
-          icon={<Boxes size={14} />}
+          title="Como o bot entrega"
+          subtitle="configuração aplicada por produto"
+          icon={<Package size={14} />}
         />
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-y border-ink-800 bg-ink-900/50">
                 <th className="th">Produto</th>
-                <th className="th">Vendidos</th>
-                <th className="th">Entregues</th>
-                <th className="th">Fila pendente</th>
+                <th className="th">Categoria</th>
+                <th className="th">Preço</th>
                 <th className="th">Estoque</th>
-                <th className="th">Modo</th>
+                <th className="th">Entrega</th>
+                <th className="th">Status</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((p) => (
+              {products.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-[12px] text-ink-500">
+                    Sem produtos cadastrados.
+                  </td>
+                </tr>
+              )}
+              {products.map((p) => (
                 <tr key={p.id} className="border-b border-ink-800/70 hover:bg-ink-850/60">
                   <td className="td text-white">{p.name}</td>
-                  <td className="td font-mono">{num(p.sold)}</td>
-                  <td className="td font-mono">{num(p.deliveries)}</td>
-                  <td className="td font-mono">
-                    <span className={p.sold - p.deliveries > 0 ? 'text-white' : 'text-ink-500'}>
-                      {num(Math.max(0, p.sold - p.deliveries))}
-                    </span>
-                  </td>
-                  <td className="td font-mono">{p.stock === 0 ? <span className="text-white">0</span> : num(p.stock)}</td>
+                  <td className="td font-mono text-[11px] text-ink-400">{p.category}</td>
+                  <td className="td font-mono">{brl(p.price)}</td>
+                  <td className="td font-mono">{num(p.stock)}</td>
                   <td className="td">
                     <span className={`tag ${p.autoDelivery ? 'border-white bg-white text-black' : 'border-ink-600 text-ink-300'}`}>
-                      {p.autoDelivery ? 'automático' : 'manual'}
+                      {p.autoDelivery ? 'automática' : 'manual'}
+                    </span>
+                  </td>
+                  <td className="td">
+                    <span className={`tag ${p.active ? 'border-ink-500 text-white' : 'border-ink-700 text-ink-500'}`}>
+                      {p.active ? 'ativo' : 'pausado'}
                     </span>
                   </td>
                 </tr>
@@ -181,15 +236,15 @@ export default function Products() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Novo produto"
-        eyebrow="catálogo"
+        title={editing ? 'Editar produto' : 'Novo produto'}
+        eyebrow={editing ? editing.id : 'catálogo'}
         footer={
           <>
             <button className="btn-ghost" onClick={() => setOpen(false)}>
               Cancelar
             </button>
-            <button className="btn-primary" onClick={addProduct}>
-              Criar produto
+            <button className="btn-primary" onClick={submit}>
+              {editing ? 'Salvar alterações' : 'Cadastrar'}
             </button>
           </>
         }
@@ -204,15 +259,24 @@ export default function Products() {
               placeholder="Ex.: Nitro Full 1 Mês"
             />
           </div>
+          <div>
+            <label className="label">Descrição (opcional)</label>
+            <textarea
+              className="field min-h-[70px] resize-y"
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              placeholder="O que o cliente recebe"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Categoria</label>
               <select
                 className="field"
                 value={draft.category}
-                onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                onChange={(e) => setDraft({ ...draft, category: e.target.value as ProductCategory })}
               >
-                {['Assinaturas', 'Contas', 'Boosts', 'Scripts'].map((c) => (
+                {categories.map((c) => (
                   <option key={c} className="bg-ink-900">
                     {c}
                   </option>
@@ -231,7 +295,7 @@ export default function Products() {
             </div>
           </div>
           <div>
-            <label className="label">Estoque inicial</label>
+            <label className="label">Estoque</label>
             <input
               className="field"
               value={draft.stock}
@@ -248,6 +312,35 @@ export default function Products() {
             <Switch checked={draft.autoDelivery} onChange={(v) => setDraft({ ...draft, autoDelivery: v })} />
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        title="Remover produto"
+        eyebrow={confirmDelete?.id}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setConfirmDelete(null)}>
+              Cancelar
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                if (confirmDelete) removeProduct(confirmDelete.id)
+                setConfirmDelete(null)
+                toast('Produto removido')
+              }}
+            >
+              Remover
+            </button>
+          </>
+        }
+      >
+        <p className="text-[12.5px] leading-relaxed text-ink-300">
+          Tem certeza que deseja remover <span className="text-white">{confirmDelete?.name}</span>? O histórico de
+          vendas na API não é afetado.
+        </p>
       </Modal>
       {toastNode}
     </div>

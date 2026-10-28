@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Download, Filter, Search, X } from 'lucide-react'
-import { Avatar, Card, CopyButton, KV, Modal, StatusBadge, StatCard, useToast } from '@/components/ui'
-import { sales, type SaleStatus } from '@/data/mock'
-import { brl, compactBrl, dateTime, methodLabel, num, statusLabel } from '@/lib/format'
+import { Download, Filter, Search, ShoppingBag, X } from 'lucide-react'
+import { Card, EmptyState, KV, Modal, StatCard, StatusBadge, useToast } from '@/components/ui'
+import { useGuild } from '@/lib/useGuild'
+import { API_URL, type OrderStatus } from '@/lib/store'
+import { brl, compactMoney, dateTime, methodLabel, num, statusLabel } from '@/lib/format'
 
-const statusOptions: (SaleStatus | 'todos')[] = ['todos', 'pago', 'pendente', 'reembolsado', 'cancelado', 'expirado']
+const statusOptions: (OrderStatus | 'todos')[] = ['todos', 'pago', 'pendente', 'reembolsado', 'cancelado', 'expirado']
 const methodOptions = ['todos', 'pix', 'cartao', 'crypto', 'saldo'] as const
 
 export default function Sales() {
+  const { orders, guildId } = useGuild()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('todos')
   const [method, setMethod] = useState<(typeof methodOptions)[number]>('todos')
@@ -16,34 +18,38 @@ export default function Sales() {
 
   const filtered = useMemo(
     () =>
-      sales.filter((s) => {
+      orders.data.filter((o) => {
+        const term = q.toLowerCase()
         const matchQ =
-          !q ||
-          s.id.toLowerCase().includes(q.toLowerCase()) ||
-          s.customer.toLowerCase().includes(q.toLowerCase()) ||
-          s.product.toLowerCase().includes(q.toLowerCase()) ||
-          s.discordId.includes(q)
-        const matchStatus = status === 'todos' || s.status === status
-        const matchMethod = method === 'todos' || s.method === method
-        return matchQ && matchStatus && matchMethod
+          !term ||
+          o.id.toLowerCase().includes(term) ||
+          o.customerName.toLowerCase().includes(term) ||
+          o.productName.toLowerCase().includes(term) ||
+          o.customerId.includes(term)
+        return matchQ && (status === 'todos' || o.status === status) && (method === 'todos' || o.method === method)
       }),
-    [q, status, method],
+    [orders.data, q, status, method],
   )
 
-  const total = filtered.filter((s) => s.status === 'pago').reduce((a, b) => a + b.amount, 0)
-  const sale = sales.find((s) => s.id === selected)
+  const paid = filtered.filter((o) => o.status === 'pago')
+  const total = paid.reduce((s, o) => s + o.amount, 0)
+  const order = orders.data.find((o) => o.id === selected)
 
   const exportCsv = () => {
-    const header = 'pedido,cliente,produto,metodo,valor,status,criado_em\n'
+    if (!filtered.length) {
+      toast('Nada para exportar')
+      return
+    }
+    const header = 'pedido,cliente,id_discord,produto,metodo,valor,status,criado_em\n'
     const body = filtered
-      .map((s) =>
-        [s.id, s.customer, s.product, s.method, s.amount.toFixed(2), s.status, s.createdAt].join(','),
+      .map((o) =>
+        [o.id, o.customerName, o.customerId, o.productName, o.method, o.amount.toFixed(2), o.status, o.createdAt].join(','),
       )
       .join('\n')
     const url = URL.createObjectURL(new Blob([header + body], { type: 'text/csv;charset=utf-8' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = 'nesspay-vendas.csv'
+    a.download = `nesspay-vendas-${guildId}.csv`
     a.click()
     URL.revokeObjectURL(url)
     toast('CSV exportado')
@@ -52,17 +58,23 @@ export default function Sales() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Pedidos listados" value={num(filtered.length)} hint="filtro atual" />
-        <StatCard label="Receita filtrada" value={compactBrl(total)} delta={9.2} hint="pagos" />
+        <StatCard label="Pedidos carregados" value={orders.data.length ? num(filtered.length) : '—'} hint={orders.data.length ? 'filtro atual' : 'nenhum pedido na API'} muted={!orders.data.length} />
+        <StatCard label="Receita filtrada" value={paid.length ? compactMoney(total) : '—'} hint={paid.length ? `${num(paid.length)} pagos` : 'sem pagamentos'} muted={!paid.length} />
         <StatCard
           label="Pendentes"
-          value={num(filtered.filter((s) => s.status === 'pendente').length)}
+          value={orders.data.length ? num(filtered.filter((o) => o.status === 'pendente').length) : '—'}
           hint="aguardando pagamento"
+          muted={!orders.data.length}
         />
         <StatCard
           label="Reembolsos"
-          value={num(filtered.filter((s) => s.status === 'reembolsado').length)}
-          hint={`${brl(filtered.filter((s) => s.status === 'reembolsado').reduce((a, b) => a + b.amount, 0))} devolvidos`}
+          value={orders.data.length ? num(filtered.filter((o) => o.status === 'reembolsado').length) : '—'}
+          hint={
+            orders.data.length
+              ? brl(filtered.filter((o) => o.status === 'reembolsado').reduce((s, o) => s + o.amount, 0))
+              : 'nada devolvido'
+          }
+          muted={!orders.data.length}
         />
       </div>
 
@@ -77,10 +89,7 @@ export default function Sales() {
               className="field pl-9"
             />
             {q && (
-              <button
-                onClick={() => setQ('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-500 hover:text-white"
-              >
+              <button onClick={() => setQ('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-500 hover:text-white">
                 <X size={13} />
               </button>
             )}
@@ -91,7 +100,7 @@ export default function Sales() {
               <Filter size={11} className="text-ink-500" />
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as SaleStatus | 'todos')}
+                onChange={(e) => setStatus(e.target.value as OrderStatus | 'todos')}
                 className="bg-transparent text-[11px] uppercase tracking-[0.08em] text-ink-200 outline-none"
               >
                 {statusOptions.map((s) => (
@@ -115,147 +124,119 @@ export default function Sales() {
             <button onClick={exportCsv} className="btn-ghost py-1.5">
               <Download size={12} /> CSV
             </button>
+            <button onClick={() => void orders.reload()} className="btn-ghost py-1.5">
+              atualizar
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-ink-900/50">
-                <th className="th">Pedido</th>
-                <th className="th">Cliente</th>
-                <th className="th">ID Discord</th>
-                <th className="th">Produto</th>
-                <th className="th">Método</th>
-                <th className="th">Cupom</th>
-                <th className="th text-right">Valor</th>
-                <th className="th">Status</th>
-                <th className="th">Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => setSelected(s.id)}
-                  className="cursor-pointer border-b border-ink-800/70 transition-colors hover:bg-ink-850/80"
-                >
-                  <td className="td font-mono text-[11.5px] text-white">{s.id}</td>
-                  <td className="td">
-                    <div className="flex items-center gap-2">
-                      <Avatar label={s.customer.slice(0, 1)} hue={s.avatarHue} size={24} />
-                      {s.customer}
-                    </div>
-                  </td>
-                  <td className="td font-mono text-[10.5px] text-ink-500">{s.discordId}</td>
-                  <td className="td text-ink-300">{s.product}</td>
-                  <td className="td font-mono text-[11px] uppercase tracking-[0.08em] text-ink-400">
-                    {methodLabel[s.method]}
-                  </td>
-                  <td className="td font-mono text-[10.5px] text-ink-400">{s.coupon ?? '—'}</td>
-                  <td className="td text-right font-mono text-[12px] text-white">{brl(s.amount)}</td>
-                  <td className="td">
-                    <StatusBadge status={s.status} label={statusLabel[s.status]} />
-                  </td>
-                  <td className="td font-mono text-[11px] text-ink-400">{dateTime(s.createdAt)}</td>
+        {filtered.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              icon={<ShoppingBag size={16} />}
+              title={orders.data.length ? 'Nenhum pedido com esses filtros' : 'Nenhuma venda registrada'}
+              hint={
+                orders.data.length
+                  ? 'Ajuste a busca ou os filtros de status e método.'
+                  : API_URL
+                    ? 'A API está configurada mas não retornou pedidos para este servidor.'
+                    : 'As vendas chegam aqui quando o bot estiver enviando pedidos para a API (VITE_API_URL).'
+              }
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-ink-900/50">
+                  <th className="th">Pedido</th>
+                  <th className="th">Cliente</th>
+                  <th className="th">ID Discord</th>
+                  <th className="th">Produto</th>
+                  <th className="th">Método</th>
+                  <th className="th">Cupom</th>
+                  <th className="th text-right">Valor</th>
+                  <th className="th">Status</th>
+                  <th className="th">Data</th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-ink-500">
-                    Nenhum pedido encontrado com esses filtros.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map((o) => (
+                  <tr
+                    key={o.id}
+                    onClick={() => setSelected(o.id)}
+                    className="cursor-pointer border-b border-ink-800/70 transition-colors hover:bg-ink-850/80"
+                  >
+                    <td className="td font-mono text-[11.5px] text-white">{o.id}</td>
+                    <td className="td">{o.customerName}</td>
+                    <td className="td font-mono text-[10.5px] text-ink-500">{o.customerId}</td>
+                    <td className="td text-ink-300">{o.productName}</td>
+                    <td className="td font-mono text-[11px] uppercase tracking-[0.08em] text-ink-400">
+                      {methodLabel[o.method]}
+                    </td>
+                    <td className="td font-mono text-[10.5px] text-ink-400">{o.coupon ?? '—'}</td>
+                    <td className="td text-right font-mono text-[12px] text-white">{brl(o.amount)}</td>
+                    <td className="td">
+                      <StatusBadge status={o.status} label={statusLabel[o.status]} />
+                    </td>
+                    <td className="td font-mono text-[11px] text-ink-400">{dateTime(o.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div className="flex items-center justify-between border-t border-ink-800 px-4 py-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-500">
-            {filtered.length} de {sales.length} pedidos
+            {filtered.length} de {orders.data.length} pedidos
           </span>
-          <div className="flex gap-1">
-            {['‹', '1', '2', '3', '›'].map((p, i) => (
-              <button
-                key={i}
-                className={`h-7 min-w-7 border px-2 font-mono text-[10.5px] transition-colors ${
-                  p === '1' ? 'border-white bg-white text-black' : 'border-ink-700 text-ink-400 hover:border-white hover:text-white'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-600">
+            fonte: {orders.state === 'ready' ? 'api do bot' : 'sem conexão'}
+          </span>
         </div>
       </Card>
 
       <Modal
-        open={!!sale}
+        open={!!order}
         onClose={() => setSelected(null)}
-        eyebrow={sale?.id}
+        eyebrow={order?.id}
         title="Detalhe do pedido"
         footer={
           <>
-            <button className="btn-ghost" onClick={() => { setSelected(null); toast('Reembolso solicitado (simulação)') }}>
+            <button className="btn-ghost" onClick={() => toast('Ação disponível quando a API estiver no ar')}>
               Reembolsar
             </button>
-            <button className="btn-primary" onClick={() => { setSelected(null); toast('Entrega reenviada') }}>
+            <button className="btn-primary" onClick={() => toast('Ação disponível quando a API estiver no ar')}>
               Reenviar entrega
             </button>
           </>
         }
       >
-        {sale && (
+        {order && (
           <div className="space-y-4">
             <div className="flex items-center justify-between border border-ink-700 bg-ink-850/60 p-3.5">
-              <div className="flex items-center gap-3">
-                <Avatar label={sale.customer.slice(0, 1)} hue={sale.avatarHue} size={38} />
-                <div>
-                  <p className="text-[13px] text-white">{sale.customer}</p>
-                  <p className="font-mono text-[10.5px] text-ink-500">{sale.discordId}</p>
-                </div>
+              <div>
+                <p className="text-[13px] text-white">{order.customerName}</p>
+                <p className="font-mono text-[10.5px] text-ink-500">{order.customerId}</p>
               </div>
-              <StatusBadge status={sale.status} label={statusLabel[sale.status]} />
+              <StatusBadge status={order.status} label={statusLabel[order.status]} />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="border border-ink-800 p-3">
                 <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-500">valor</p>
-                <p className="mt-1 font-display text-[22px] leading-none text-white">{brl(sale.amount)}</p>
+                <p className="mt-1 font-display text-[18px] leading-none text-white">{brl(order.amount)}</p>
               </div>
               <div className="border border-ink-800 p-3">
                 <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-500">método</p>
-                <p className="mt-1 font-display text-[22px] leading-none text-white">{methodLabel[sale.method]}</p>
+                <p className="mt-1 font-display text-[18px] leading-none text-white">{methodLabel[order.method]}</p>
               </div>
             </div>
-
             <div>
-              <KV k="Produto" v={sale.product} />
-              <KV k="Cupom" v={sale.coupon ?? '—'} />
-              <KV k="Criado em" v={dateTime(sale.createdAt)} />
-              <KV k="Ticket" v={sale.ticketId ?? '—'} />
-              <KV
-                k="ID do pagamento"
-                v={
-                  <span className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-ink-300">pay_9f2ac{sale.id.slice(-4)}</span>
-                    <CopyButton value={`pay_9f2ac${sale.id.slice(-4)}`} />
-                  </span>
-                }
-              />
-            </div>
-
-            <div className="border border-dashed border-ink-700 p-3">
-              <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.16em] text-ink-500">linha do tempo</p>
-              <ol className="space-y-2">
-                {['Pedido criado pelo bot', 'Pagamento confirmado (webhook)', 'Produto entregue no DM'].map((t, i) => (
-                  <li key={t} className="flex items-center gap-2.5 text-[11.5px] text-ink-300">
-                    <span className={`h-1.5 w-1.5 ${i === 2 && sale.status !== 'pago' ? 'bg-ink-600' : 'bg-white'}`} />
-                    {t}
-                  </li>
-                ))}
-              </ol>
+              <KV k="Produto" v={order.productName} />
+              <KV k="Cupom" v={order.coupon ?? '—'} />
+              <KV k="Criado em" v={dateTime(order.createdAt)} />
+              <KV k="Server" v={guildId} />
             </div>
           </div>
         )}
