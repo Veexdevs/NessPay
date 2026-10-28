@@ -1,28 +1,37 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { ArrowRight, KeyRound, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ArrowRight, Copy, KeyRound, Settings2, ShieldCheck } from 'lucide-react'
 import { useSession } from '@/lib/session'
-import { buildAuthUrl, oauthConfigured, redirectUri } from '@/lib/discord'
+import { CLIENT_ID, buildAuthUrl, clientIdSource, hasAuthPayload, redirectUri } from '@/lib/discord'
 
 export default function Login() {
   const { authenticated, keyVerified, signIn } = useSession()
   const navigate = useNavigate()
   const [hover, setHover] = useState(false)
-  const configured = oauthConfigured()
+  const [copied, setCopied] = useState<string | null>(null)
+  const [showConfig, setShowConfig] = useState(false)
 
   useEffect(() => {
     document.title = 'Entrar — NessPay'
   }, [])
 
+  // Se o Discord devolver o token em qualquer rota, manda para o callback.
+  useEffect(() => {
+    if (hasAuthPayload()) {
+      navigate(`/auth/callback${window.location.search}${window.location.hash}`, { replace: true })
+    }
+  }, [navigate])
+
   if (authenticated) return <Navigate to={keyVerified ? '/servidores' : '/chave'} replace />
 
   const startDiscord = () => {
-    if (configured) {
-      window.location.href = buildAuthUrl()
-    } else {
-      signIn({ token: null, user: null, guilds: [], mode: 'setup' })
-      navigate('/chave')
-    }
+    window.location.href = buildAuthUrl()
+  }
+
+  const copy = (value: string, id: string) => {
+    navigator.clipboard?.writeText(value)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 1500)
   }
 
   return (
@@ -32,7 +41,6 @@ export default function Login() {
 
       <div className="relative w-full max-w-[900px] border border-ink-700 bg-ink-900/80 backdrop-blur-xl">
         <div className="grid md:grid-cols-2">
-          {/* institucional */}
           <div className="grain relative hidden flex-col justify-between border-r border-ink-800 p-8 md:flex">
             <div className="hatch pointer-events-none absolute inset-0 opacity-30" />
             <div className="relative">
@@ -66,7 +74,6 @@ export default function Login() {
             </ul>
           </div>
 
-          {/* login */}
           <div className="p-7 sm:p-9">
             <div className="mb-6 flex items-center gap-2">
               <span className="h-1.5 w-1.5 animate-pulse-dot bg-white" />
@@ -95,27 +102,57 @@ export default function Login() {
               <ArrowRight size={15} className={`transition-transform ${hover ? 'translate-x-1' : ''}`} />
             </button>
 
-            {!configured && (
-              <div className="mt-4 border border-ink-600 bg-ink-850/70 p-3">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-white">
-                  <TriangleAlert size={12} /> OAuth ainda não configurada
-                </p>
-                <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-400">
-                  Sem <span className="font-mono text-ink-200">VITE_DISCORD_CLIENT_ID</span> não é possível ler seus
-                  servidores. O botão acima entra em modo de configuração para você navegar no painel vazio — nenhum
-                  dado de exemplo é exibido.
-                </p>
-                <div className="mt-2 space-y-1 font-mono text-[10px] text-ink-500">
-                  <p>redirect: {redirectUri()}</p>
-                  <p>escopos: identify guilds</p>
-                </div>
-              </div>
-            )}
-
             <div className="mt-5 flex items-center gap-2 text-[11px] text-ink-500">
               <KeyRound size={12} />
-              Depois do login você vai informar a sua Key de licença.
+              Depois do login você informa a sua Key de licença.
             </div>
+
+            <button
+              onClick={() => setShowConfig((v) => !v)}
+              className="mt-5 flex w-full items-center justify-between border border-ink-700 px-3 py-2 text-left transition-colors hover:border-ink-500"
+            >
+              <span className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-ink-400">
+                <Settings2 size={11} /> configuração do login
+              </span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-ink-600">
+                {showConfig ? 'ocultar' : 'ver'}
+              </span>
+            </button>
+
+            {showConfig && (
+              <div className="mt-2 space-y-2.5 border border-ink-800 bg-black/50 p-3">
+                <div>
+                  <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-500">client id ({clientIdSource})</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <code className="flex-1 truncate font-mono text-[11px] text-white">{CLIENT_ID}</code>
+                    <button
+                      onClick={() => copy(CLIENT_ID, 'client')}
+                      className="flex items-center gap-1 border border-ink-600 px-2 py-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-ink-300 hover:border-white hover:text-white"
+                    >
+                      <Copy size={9} /> {copied === 'client' ? 'ok' : 'copiar'}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-500">
+                    redirect uri (precisa estar cadastrado)
+                  </p>
+                  <div className="mt-1 flex items-start gap-2">
+                    <code className="flex-1 break-all font-mono text-[11px] leading-relaxed text-white">{redirectUri()}</code>
+                    <button
+                      onClick={() => copy(redirectUri(), 'redirect')}
+                      className="flex shrink-0 items-center gap-1 border border-ink-600 px-2 py-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-ink-300 hover:border-white hover:text-white"
+                    >
+                      <Copy size={9} /> {copied === 'redirect' ? 'ok' : 'copiar'}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10.5px] leading-relaxed text-ink-500">
+                  No Vercel, cadastre essa URI (e a de produção/preview) em OAuth2 → Redirects. Se mudar o domínio, o
+                  redirect muda junto — copie e atualize no portal.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
