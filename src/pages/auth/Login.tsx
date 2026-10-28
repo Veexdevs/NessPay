@@ -14,8 +14,6 @@ export default function Login() {
   useEffect(() => {
     document.title = 'Entrar — NessPay'
   }, [])
-
-  // Se o Discord devolver o token em qualquer rota, manda para o callback.
   useEffect(() => {
     if (hasAuthPayload()) {
       navigate(`/auth/callback${window.location.search}${window.location.hash}`, { replace: true })

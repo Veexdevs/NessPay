@@ -1,16 +1,6 @@
-/**
- * Integração real com o Discord (OAuth2 implicit grant, sem backend).
- * Funciona em qualquer domínio (Vercel, localhost, preview) desde que o
- * redirect URI usado aqui esteja registrado no Developer Portal.
- */
 
 export const DISCORD_API = 'https://discord.com/api/v10'
 
-/**
- * Client ID: usa VITE_DISCORD_CLIENT_ID quando existir e for válido.
- * Se o build do Vercel não tiver a variável, cai no Client ID padrão do
- * projeto — assim o login não quebra por causa de env var faltando.
- */
 const ENV_CLIENT_ID = (import.meta.env.VITE_DISCORD_CLIENT_ID ?? '').trim()
 const FALLBACK_CLIENT_ID = '1561323387320668193'
 
@@ -19,11 +9,6 @@ export const clientIdSource: 'env' | 'padrão' = /^\d{15,25}$/.test(ENV_CLIENT_I
 
 export const oauthConfigured = () => /^\d{15,25}$/.test(CLIENT_ID)
 
-/**
- * Redirect usado no login. Ordem de prioridade:
- * 1. VITE_DISCORD_REDIRECT_URI (útil se você registrou outro caminho)
- * 2. {origem atual}/auth/callback
- */
 export const redirectUri = () => {
   const fromEnv = (import.meta.env.VITE_DISCORD_REDIRECT_URI ?? '').trim()
   if (fromEnv) return fromEnv
@@ -69,10 +54,6 @@ export interface AuthResult {
   errorDescription: string | null
 }
 
-/**
- * O Discord devolve sucesso no fragmento (#access_token=…) e erros na
- * query string (?error=…) — por isso lemos os dois.
- */
 export function readAuthResponse(): AuthResult {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
   const search = new URLSearchParams(window.location.search)
@@ -109,13 +90,11 @@ export function readAuthResponse(): AuthResult {
   }
 }
 
-/** Há retorno de OAuth nesta URL? */
 export const hasAuthPayload = () => {
   const url = `${window.location.search}${window.location.hash}`
   return /(^|[?&#])(access_token|error)=/.test(url)
 }
 
-/** Traduz os erros mais comuns do Discord em algo acionável. */
 export function explainAuthError(error: string | null, description: string | null): string {
   const detail = description ? ` (${description})` : ''
   switch (error) {
@@ -151,7 +130,6 @@ export const fetchMe = (token: string) => get<DiscordUser>('/users/@me', token)
 
 export const fetchGuilds = (token: string) => get<DiscordGuild[]>('/users/@me/guilds', token)
 
-/** ADMINISTRATOR (0x8) ou MANAGE_GUILD (0x20) ou ser o dono */
 export function canManage(guild: DiscordGuild) {
   if (guild.owner) return true
   try {
@@ -169,9 +147,8 @@ export function permissionLabel(guild: DiscordGuild) {
     if ((perms & 8n) === 8n) return 'administrador'
     if ((perms & 32n) === 32n) return 'gerenciar servidor'
   } catch {
-    /* permissões inválidas */
+    return 'sem permissão'
   }
-  return 'sem permissão'
 }
 
 export const guildIcon = (guild: DiscordGuild | null, size = 96) =>

@@ -1,7 +1,3 @@
-/**
- * Sessão do painel: usuário Discord, servidores e validação da Key.
- * Persistida em localStorage.
- */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { DiscordGuild, DiscordUser, canManage } from './discord'
@@ -10,8 +6,7 @@ export type AuthMode = 'discord' | 'setup' | null
 
 export interface Session {
   token: string | null
-  /** epoch ms em que o token do Discord expira (7 dias no implicit grant) */
-  expiresAt: number | null
+    expiresAt: number | null
   user: DiscordUser | null
   guilds: DiscordGuild[]
   mode: AuthMode
@@ -59,7 +54,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const raw = localStorage.getItem(SESSION_KEY)
       if (raw) setSession({ ...EMPTY, ...(JSON.parse(raw) as Partial<Session>) })
     } catch {
-      /* ignora sessão corrompida */
+      setSession(EMPTY)
     }
     setReady(true)
   }, [])
@@ -69,7 +64,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(next))
     } catch {
-      /* armazenamento cheio/indisponível */
+      return
     }
   }, [])
 
@@ -79,8 +74,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const expired = !!session.expiresAt && session.expiresAt <= Date.now()
-
-  // token vencido: limpa a sessão para não ficar em loop de 401
   useEffect(() => {
     if (ready && expired) signOut()
   }, [ready, expired, signOut])

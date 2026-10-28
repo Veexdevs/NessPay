@@ -16,24 +16,17 @@ import { Banner, Card, CardHeader, EmptyState, Meter, StatCard, StatusBadge } fr
 import { ChartEmpty, RevenueChart, MethodBars, CategoryDonut } from '@/components/charts'
 import { useGuild } from '@/lib/useGuild'
 import { useSession } from '@/lib/session'
-import { API_URL } from '@/lib/store'
+import { apiConfigured } from '@/lib/api'
 import { brl, compactMoney, num, dateTime, relative, methodLabel, statusLabel } from '@/lib/format'
 
 export default function Dashboard() {
-  const {
-    guild,
-    guildId,
-    orders,
-    metrics,
-    products,
-    coupons,
-    settings,
-  } = useGuild()
+  const { guild, guildId, orders, metrics, store, state, error, tickets, customers } = useGuild()
+  const { products, coupons, settings, source } = store
   const { keyVerified } = useSession()
 
   const hasSales = metrics.paidCount > 0
   const hasProducts = products.length > 0
-  const apiState = orders.state
+  const apiState = state
 
   const checklist = [
     {
@@ -51,7 +44,9 @@ export default function Dashboard() {
     {
       done: hasProducts,
       label: 'Cadastrar o primeiro produto',
-      detail: hasProducts ? `${products.length} produto(s) no catálogo` : 'sem produtos o bot não tem o que vender',
+      detail: hasProducts
+        ? `${products.length} produto(s) no catálogo do ${source === 'api' ? 'bot' : 'navegador'}`
+        : 'sem produtos o bot não tem o que vender',
       to: `/app/${guildId}/produtos`,
     },
     {
@@ -59,12 +54,12 @@ export default function Dashboard() {
       label: 'API do bot respondendo',
       detail:
         apiState === 'ready'
-          ? 'pedidos sendo lidos da API'
+          ? `${orders.length} pedido(s) e ${tickets.length} ticket(s) lidos do bot`
           : apiState === 'error'
-            ? orders.error ?? 'erro ao consultar a API'
-            : API_URL
+            ? error ?? 'erro ao consultar a API'
+            : apiConfigured()
               ? 'aguardando resposta'
-              : 'defina VITE_API_URL depois de subir o backend',
+              : 'defina VITE_API_URL com o endereço da API do bot',
       to: `/app/${guildId}/integracoes`,
     },
     {
@@ -81,8 +76,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
-      {/* HERO */}
-      <section className="panel grain relative overflow-hidden">
+            <section className="panel grain relative overflow-hidden">
         <div className="hatch pointer-events-none absolute inset-0 opacity-40" />
         <div className="relative grid gap-6 p-6 md:grid-cols-[1.4fr_1fr] md:p-8">
           <div>
@@ -153,15 +147,14 @@ export default function Dashboard() {
           }
         >
           {apiState === 'error'
-            ? orders.error ?? 'A API respondeu com erro.'
-            : API_URL
-              ? 'A API está configurada, mas ainda não retornou pedidos.'
-              : 'Os números deste painel só aparecem quando VITE_API_URL apontar para o backend do bot. Nada é simulado.'}
+            ? error ?? 'A API respondeu com erro.'
+            : apiConfigured()
+              ? 'A API está configurada e conectada ao bot.'
+              : 'Os números deste painel só aparecem quando VITE_API_URL apontar para a API do bot. Nada é simulado.'}
         </Banner>
       )}
 
-      {/* KPIs reais */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Receita hoje"
           value={metrics.todayRevenue > 0 ? brl(metrics.todayRevenue) : '—'}
@@ -192,8 +185,7 @@ export default function Dashboard() {
         />
       </section>
 
-      {/* gráficos */}
-      <section className="grid gap-3 xl:grid-cols-3">
+            <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             title="Receita · últimos 30 dias"
@@ -223,14 +215,13 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* vendas + checklist */}
-      <section className="grid gap-3 xl:grid-cols-3">
+            <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2" padded={false}>
           <div className="flex items-center justify-between px-5 pb-3 pt-5">
             <div>
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white">Últimas vendas</h2>
               <p className="mt-1 text-[11.5px] text-ink-400">
-                {hasSales ? `${num(orders.data.length)} pedidos recebidos da API` : 'pedidos enviados pelo bot'}
+                {hasSales ? `${num(orders.length)} pedidos recebidos do bot` : 'pedidos enviados pelo bot'}
               </p>
             </div>
             <Link
@@ -241,7 +232,7 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {orders.data.length === 0 ? (
+          {orders.length === 0 ? (
             <div className="px-5 pb-5">
               <EmptyState
                 icon={<ShoppingCart size={16} />}
@@ -264,7 +255,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.data.slice(0, 7).map((o) => (
+                  {orders.slice(0, 7).map((o) => (
                     <tr key={o.id} className="border-b border-ink-800/70 transition-colors hover:bg-ink-850/70">
                       <td className="td font-mono text-[11.5px] text-ink-300">{o.id}</td>
                       <td className="td text-ink-100">{o.customerName}</td>
@@ -322,8 +313,8 @@ export default function Dashboard() {
               {[
                 ['Produtos cadastrados', num(products.length), `/app/${guildId}/produtos`],
                 ['Cupons criados', num(coupons.length), `/app/${guildId}/cupons`],
-                ['Clientes (da API)', num(metrics.customers.length), `/app/${guildId}/clientes`],
-                ['Tickets abertos', num(metrics.orderCount ? 0 : 0), `/app/${guildId}/tickets`],
+                ['Clientes', num(customers.length), `/app/${guildId}/clientes`],
+                ['Tickets abertos', num(tickets.filter((t) => t.status !== 'resolvido').length), `/app/${guildId}/tickets`],
               ].map(([label, value, to]) => (
                 <Link
                   key={String(label)}
@@ -342,8 +333,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* top produtos */}
-      <section className="grid gap-3 xl:grid-cols-3">
+            <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             title="Produtos por receita"
@@ -399,6 +389,7 @@ export default function Dashboard() {
               ['Discord OAuth2', !!guild],
               ['Key de licença', keyVerified],
               ['API do bot', apiState === 'ready'],
+              ['Produtos no bot', source === 'api'],
               ['Canal de vendas', !!settings.salesChannel],
               ['Canal de logs', !!settings.logsChannel],
             ].map(([label, done]) => (

@@ -1,6 +1,9 @@
-import { Order, Product, PaymentMethod } from './store'
+import { PaymentMethod, Product } from './store'
+import type { ApiCustomer, ApiOrder } from './api'
 
-export const methodLabel: Record<PaymentMethod, string> = {
+export type Order = ApiOrder
+
+export const methodLabel: Record<string, string> = {
   pix: 'Pix',
   cartao: 'Cartão',
   crypto: 'Cripto',
@@ -28,7 +31,6 @@ export interface DayPoint {
   date: string
 }
 
-/** Série diária baseada apenas em pedidos reais. */
 export function revenueSeries(orders: Order[], days = 30): DayPoint[] {
   const paid = orders.filter((o) => o.status === 'pago')
   const today = new Date()
@@ -52,7 +54,11 @@ export function revenueSeries(orders: Order[], days = 30): DayPoint[] {
   })
 }
 
-export function computeMetrics(orders: Order[], products: Product[]) {
+export function computeMetrics(
+  orders: Order[],
+  products: Product[],
+  remoteCustomers: ApiCustomer[] = [],
+) {
   const paid = orders.filter((o) => o.status === 'pago')
   const revenue = paid.reduce((s, o) => s + o.amount, 0)
   const avgTicket = paid.length ? revenue / paid.length : 0
@@ -64,7 +70,7 @@ export function computeMetrics(orders: Order[], products: Product[]) {
   const pending = orders.filter((o) => o.status === 'pendente')
   const refunded = orders.filter((o) => o.status === 'reembolsado')
 
-  const methods = new Map<PaymentMethod, number>()
+  const methods = new Map<string, number>()
   paid.forEach((o) => methods.set(o.method, (methods.get(o.method) ?? 0) + 1))
   const methodSplit = [...methods.entries()]
     .map(([k, v]) => ({ name: methodLabel[k], value: Math.round((v / paid.length) * 100) }))
@@ -95,7 +101,17 @@ export function computeMetrics(orders: Order[], products: Product[]) {
     string,
     { id: string; name: string; orders: number; spent: number; lastOrder: string; firstOrder: string }
   >()
-  paid.forEach((o) => {
+  remoteCustomers.forEach((row) => {
+    customers.set(row.id, {
+      id: row.id,
+      name: row.name,
+      orders: row.orders,
+      spent: row.spent,
+      lastOrder: row.lastOrder,
+      firstOrder: row.firstOrder,
+    })
+  })
+  if (remoteCustomers.length === 0) paid.forEach((o) => {
     const current = customers.get(o.customerId)
     if (!current) {
       customers.set(o.customerId, {

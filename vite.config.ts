@@ -23,6 +23,13 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
     // O preview roda em https://{port}-{sandboxId}.e2b.app
     allowedHosts: true,
     hmr: { clientPort: 443 },

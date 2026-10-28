@@ -22,7 +22,6 @@ function TooltipShell({ children }: { children: React.ReactNode }) {
   return <div className="border border-ink-500 bg-black/95 px-3 py-2 shadow-[3px_3px_0_0_#000]">{children}</div>
 }
 
-/** Placeholder honesto: grade desenhada, nenhum dado inventado. */
 export function ChartEmpty({ height = 250, message = 'Sem dados para exibir' }: { height?: number; message?: string }) {
   return (
     <div className="relative flex items-center justify-center" style={{ height }}>

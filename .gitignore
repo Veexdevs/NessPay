@@ -8,3 +8,12 @@ dist-ssr
 .DS_Store
 .vite
 *.log
+
+.venv
+venv
+__pycache__/
+*.pyc
+bot/data/
+*.db
+*.db-wal
+*.db-shm

@@ -3,7 +3,7 @@ import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, Plug } from 'lucide
 import { Card, CardHeader, CopyButton, StatusBadge } from '@/components/ui'
 import { useGuild } from '@/lib/useGuild'
 import { useSession } from '@/lib/session'
-import { API_URL } from '@/lib/store'
+import { API_BASE, apiConfigured } from '@/lib/api'
 import { oauthConfigured, redirectUri } from '@/lib/discord'
 
 type State = 'conectado' | 'pendente' | 'desconhecido'
@@ -70,11 +70,11 @@ export default function Integrations() {
       name: 'API do bot (pedidos, clientes, tickets)',
       description: 'Endpoints que alimentam vendas, clientes e tickets deste painel.',
       category: 'dados',
-      state: API_URL ? 'pendente' : 'pendente',
+      state: apiConfigured() ? 'pendente' : 'pendente',
       envKeys: ['VITE_API_URL'],
       docs: '#',
       required: true,
-      note: API_URL ? `Apontando para ${API_URL}` : 'Não definido: todas as listas de vendas ficam vazias (sem dados simulados).',
+      note: apiConfigured() ? `Apontando para ${API_BASE}` : 'Não definido: todas as listas de vendas ficam vazias (sem dados simulados).',
     },
     {
       id: 'gateway',
