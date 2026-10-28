@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-black text-ink-100 font-sans antialiased;
+    background-image: radial-gradient(circle at 18% -10%, #171717 0%, #000 42%),
+      radial-gradient(circle at 92% 108%, #131313 0%, #000 46%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: #fff;
+    color: #000;
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2b2b2b;
+    border: 2px solid #0a0a0a;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  /* ---------- Tipografia ---------- */
+  .font-display {
+    font-family: 'Anton', Impact, sans-serif;
+    letter-spacing: 0.01em;
+  }
+
+  .outline-type {
+    color: transparent;
+    -webkit-text-stroke: 1.5px #f5f5f5;
+    paint-order: stroke fill;
+  }
+
+  .chrome-type {
+    background: linear-gradient(
+      177deg,
+      #ffffff 0%,
+      #d9d9d9 18%,
+      #8f8f8f 33%,
+      #ffffff 47%,
+      #6a6a6a 62%,
+      #f2f2f2 76%,
+      #a8a8a8 92%,
+      #ffffff 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-stroke: 1px #0a0a0a;
+    filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
+  }
+
+  /* ---------- Superfícies ---------- */
+  .panel {
+    @apply relative rounded-none border border-ink-700 bg-ink-900/80 backdrop-blur-sm;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 40px -30px #000;
+  }
+
+  .panel-hover {
+    @apply transition-all duration-200 hover:border-ink-500 hover:bg-ink-850;
+  }
+
+  .hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.07) 0px,
+      rgba(255, 255, 255, 0.07) 1px,
+      transparent 1px,
+      transparent 6px
+    );
+  }
+
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.16;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  /* ---------- Botões ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 border px-4 py-2.5 text-[12.5px] font-semibold uppercase tracking-[0.08em] transition-all duration-150 select-none;
+  }
+  .btn:active {
+    transform: translate(1px, 1px);
+  }
+  .btn-primary {
+    @apply btn border-white bg-white text-black hover:bg-ink-100 hover:shadow-hard-sm;
+  }
+  .btn-ghost {
+    @apply btn border-ink-600 bg-transparent text-ink-200 hover:border-white hover:text-white;
+  }
+  .btn-danger {
+    @apply btn border-ink-500 bg-transparent text-white hover:bg-white hover:text-black;
+  }
+
+  /* ---------- Inputs ---------- */
+  .field {
+    @apply w-full border border-ink-600 bg-black/60 px-3.5 py-2.5 text-sm text-white placeholder:text-ink-400 outline-none transition-colors focus:border-white;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.14em] text-ink-300;
+  }
+
+  /* ---------- Tabela ---------- */
+  .th {
+    @apply whitespace-nowrap px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-ink-400;
+  }
+  .td {
+    @apply whitespace-nowrap px-4 py-3.5 text-[13px] text-ink-200;
+  }
+
+  .tag {
+    @apply inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em];
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Recharts theming (monocromático) */
+.recharts-cartesian-axis-tick text {
+  fill: #6f6f6f;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.recharts-cartesian-grid line {
+  stroke: #1a1a1a;
+}
+.recharts-tooltip-wrapper {
+  outline: none;
+}
