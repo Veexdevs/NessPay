@@ -2,68 +2,116 @@ import { Link } from 'react-router-dom'
 import {
   ArrowUpRight,
   BadgeDollarSign,
-  CircleAlert,
-  Clock3,
+  CheckCircle2,
+  Circle,
   Package,
-  Radio,
+  Plug,
   Receipt,
   ShoppingCart,
+  TicketPercent,
   TrendingUp,
-  Users,
   Zap,
 } from 'lucide-react'
-import { Card, CardHeader, StatCard, StatusBadge, Meter, Avatar } from '@/components/ui'
-import { RevenueChart, MethodBars, CategoryDonut, OrdersLineChart } from '@/components/charts'
-import { activity, botStatus, categorySplit, methodSplit, products, revenueSeries, sales, tickets } from '@/data/mock'
-import { brl, compactBrl, dateTime, num, relative, methodLabel, statusLabel } from '@/lib/format'
-
-const todayRevenue = revenueSeries[revenueSeries.length - 1].receita
-const todayOrders = revenueSeries[revenueSeries.length - 1].pedidos
-const totalRevenue = products.reduce((s, p) => s + p.revenue, 0)
-const paidSales = sales.filter((s) => s.status === 'pago')
-const avgTicket = paidSales.reduce((s, x) => s + x.amount, 0) / Math.max(1, paidSales.length)
-
-const topProducts = [...products].sort((a, b) => b.revenue - a.revenue).slice(0, 5)
-const maxProductRevenue = topProducts[0].revenue
-
-const activityDot: Record<string, string> = {
-  sale: 'bg-white',
-  delivery: 'bg-ink-200',
-  ticket: 'bg-ink-300',
-  coupon: 'bg-ink-400',
-  alert: 'bg-white',
-  refund: 'bg-ink-500',
-  system: 'bg-ink-600',
-}
+import { Banner, Card, CardHeader, EmptyState, Meter, StatCard, StatusBadge } from '@/components/ui'
+import { ChartEmpty, RevenueChart, MethodBars, CategoryDonut } from '@/components/charts'
+import { useGuild } from '@/lib/useGuild'
+import { useSession } from '@/lib/session'
+import { API_URL } from '@/lib/store'
+import { brl, compactMoney, num, dateTime, relative, methodLabel, statusLabel } from '@/lib/format'
 
 export default function Dashboard() {
+  const {
+    guild,
+    guildId,
+    orders,
+    metrics,
+    products,
+    coupons,
+    settings,
+  } = useGuild()
+  const { keyVerified } = useSession()
+
+  const hasSales = metrics.paidCount > 0
+  const hasProducts = products.length > 0
+  const apiState = orders.state
+
+  const checklist = [
+    {
+      done: !!guild,
+      label: 'Discord conectado',
+      detail: guild ? `servidor: ${guild.name}` : 'faça login com Discord para vincular seus servidores',
+      to: '/servidores',
+    },
+    {
+      done: keyVerified,
+      label: 'Key de licença informada',
+      detail: keyVerified ? 'acesso liberado nesta sessão' : 'informe a Key recebida na compra',
+      to: '/chave',
+    },
+    {
+      done: hasProducts,
+      label: 'Cadastrar o primeiro produto',
+      detail: hasProducts ? `${products.length} produto(s) no catálogo` : 'sem produtos o bot não tem o que vender',
+      to: `/app/${guildId}/produtos`,
+    },
+    {
+      done: apiState === 'ready',
+      label: 'API do bot respondendo',
+      detail:
+        apiState === 'ready'
+          ? 'pedidos sendo lidos da API'
+          : apiState === 'error'
+            ? orders.error ?? 'erro ao consultar a API'
+            : API_URL
+              ? 'aguardando resposta'
+              : 'defina VITE_API_URL depois de subir o backend',
+      to: `/app/${guildId}/integracoes`,
+    },
+    {
+      done: !!settings.salesChannel,
+      label: 'Canal de vendas definido',
+      detail: settings.salesChannel || 'escolha o canal onde o bot publica o painel de vendas',
+      to: `/app/${guildId}/configuracoes`,
+    },
+  ]
+  const completed = checklist.filter((c) => c.done).length
+
+  const topProducts = metrics.productRevenue.slice(0, 5)
+  const maxRevenue = topProducts[0]?.revenue ?? 0
+
   return (
     <div className="space-y-5">
-      {/* HERO ---------------------------------------------------------- */}
+      {/* HERO */}
       <section className="panel grain relative overflow-hidden">
         <div className="hatch pointer-events-none absolute inset-0 opacity-40" />
         <div className="relative grid gap-6 p-6 md:grid-cols-[1.4fr_1fr] md:p-8">
           <div>
             <div className="mb-4 inline-flex items-center gap-2 border border-ink-600 px-2.5 py-1">
-              <span className="h-1.5 w-1.5 animate-pulse-dot bg-white" />
+              <span
+                className={`h-1.5 w-1.5 ${apiState === 'ready' ? 'animate-pulse-dot bg-white' : 'bg-ink-500'}`}
+              />
               <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-ink-200">
-                sessão ao vivo · gateway conectado
+                {apiState === 'ready' ? 'bot conectado à api' : 'painel pronto · aguardando backend'}
               </span>
             </div>
-            <h2 className="font-display text-[38px] leading-[0.95] text-white sm:text-[52px]">
-              SUA LOJA<br />
+
+            <h2 className="display-tight text-[30px] leading-[0.98] text-white sm:text-[42px]">
+              {guild ? guild.name.toUpperCase() : 'SEU SERVIDOR'}
+              <br />
               <span className="chrome-type">NO CONTROLE.</span>
             </h2>
+
             <p className="mt-4 max-w-md text-[13px] leading-relaxed text-ink-400">
-              Vendas, entregas, cupons e atendimento do <span className="text-white">NessPay</span> em um painel único.
-              Tudo que passa pelo bot aparece aqui em tempo real.
+              Produtos, cupons e configurações que você cadastra aqui ficam salvos neste servidor. Vendas e clientes
+              aparecem assim que o bot estiver enviando pedidos para a API.
             </p>
+
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link to="/vendas" className="btn-primary">
-                Ver vendas <ArrowUpRight size={13} />
+              <Link to={`/app/${guildId}/produtos`} className="btn-primary">
+                <Package size={13} /> Cadastrar produto
               </Link>
-              <Link to="/integracoes" className="btn-ghost">
-                <Radio size={13} /> Conectar bot
+              <Link to={`/app/${guildId}/integracoes`} className="btn-ghost">
+                <Plug size={13} /> Ver o que falta
               </Link>
             </div>
           </div>
@@ -74,271 +122,302 @@ export default function Dashboard() {
             <img
               src="/assets/nesspay-mascot.png"
               alt="Mascote NessPay"
-              className="relative z-10 h-[168px] w-auto object-contain saturate-0 contrast-125 drop-shadow-[0_18px_30px_rgba(0,0,0,0.9)]"
+              className="relative z-10 h-[150px] w-auto object-contain saturate-0 contrast-125 drop-shadow-[0_18px_30px_rgba(0,0,0,0.9)]"
             />
           </div>
         </div>
 
         <div className="relative grid grid-cols-2 divide-x divide-ink-800 border-t border-ink-800 md:grid-cols-4">
           {[
-            { k: 'faturamento total', v: compactBrl(totalRevenue) },
-            { k: 'pedidos pagos', v: num(products.reduce((s, p) => s + p.sold, 0)) },
-            { k: 'ticket médio', v: brl(avgTicket) },
-            { k: 'servidores', v: `${botStatus.guilds}` },
+            { k: 'receita registrada', v: hasSales ? compactMoney(metrics.revenue) : '—' },
+            { k: 'pedidos pagos', v: hasSales ? num(metrics.paidCount) : '—' },
+            { k: 'produtos ativos', v: num(products.filter((p) => p.active).length) },
+            { k: 'cupons ativos', v: num(coupons.filter((c) => c.active).length) },
           ].map((item) => (
             <div key={item.k} className="px-5 py-3.5">
               <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-500">{item.k}</div>
-              <div className="mt-1 font-display text-[19px] leading-none text-white">{item.v}</div>
+              <div className="mt-1 font-display text-[17px] leading-none text-white">{item.v}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* KPIs --------------------------------------------------------- */}
+      {apiState !== 'ready' && (
+        <Banner
+          title="Sem dados de vendas ainda"
+          tone="info"
+          action={
+            <Link to={`/app/${guildId}/integracoes`} className="btn-ghost whitespace-nowrap py-1.5">
+              integrar <ArrowUpRight size={11} />
+            </Link>
+          }
+        >
+          {apiState === 'error'
+            ? orders.error ?? 'A API respondeu com erro.'
+            : API_URL
+              ? 'A API está configurada, mas ainda não retornou pedidos.'
+              : 'Os números deste painel só aparecem quando VITE_API_URL apontar para o backend do bot. Nada é simulado.'}
+        </Banner>
+      )}
+
+      {/* KPIs reais */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Receita hoje"
-          value={brl(todayRevenue)}
-          delta={12.4}
-          hint="vs. ontem"
+          value={metrics.todayRevenue > 0 ? brl(metrics.todayRevenue) : '—'}
+          hint={metrics.todayCount > 0 ? `${num(metrics.todayCount)} pedido(s) hoje` : 'nenhuma venda registrada hoje'}
           icon={<BadgeDollarSign size={15} />}
-          spark={revenueSeries.slice(-12).map((d) => d.receita)}
+          muted={metrics.todayRevenue === 0}
         />
         <StatCard
-          label="Pedidos hoje"
-          value={num(todayOrders)}
-          delta={8.1}
-          hint="vs. ontem"
+          label="Pedidos pagos"
+          value={hasSales ? num(metrics.paidCount) : '—'}
+          hint={metrics.pendingCount ? `${num(metrics.pendingCount)} pendente(s)` : 'aguardando o bot enviar pedidos'}
           icon={<ShoppingCart size={15} />}
-          spark={revenueSeries.slice(-12).map((d) => d.pedidos)}
+          muted={!hasSales}
         />
         <StatCard
           label="Ticket médio"
-          value={brl(avgTicket)}
-          delta={-2.3}
-          hint="30 dias"
+          value={hasSales ? brl(metrics.avgTicket) : '—'}
+          hint={hasSales ? 'calculado sobre pedidos pagos' : 'sem dados suficientes'}
           icon={<Receipt size={15} />}
-          spark={[42, 48, 45, 52, 49, 55, 53, 58, 51, 54, 50, 49]}
+          muted={!hasSales}
         />
         <StatCard
           label="Conversão"
-          value="34,8%"
-          delta={4.6}
-          hint="checkout → pago"
+          value={metrics.orderCount ? `${metrics.conversion.toFixed(1).replace('.', ',')}%` : '—'}
+          hint={metrics.orderCount ? 'pagos ÷ total de pedidos' : 'sem checkout registrado'}
           icon={<TrendingUp size={15} />}
-          spark={[22, 25, 24, 28, 31, 29, 33, 30, 34, 32, 35, 34]}
+          muted={!metrics.orderCount}
         />
       </section>
 
-      {/* CHARTS ------------------------------------------------------- */}
+      {/* gráficos */}
       <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             title="Receita · últimos 30 dias"
-            subtitle={`${compactBrl(revenueSeries.reduce((s, d) => s + d.receita, 0))} no período`}
+            subtitle={hasSales ? `${compactMoney(metrics.revenue)} no total acumulado` : 'nenhum pedido registrado no período'}
             icon={<Zap size={14} />}
-            action={
-              <div className="flex border border-ink-700">
-                {['30D', '7D', '24H'].map((r, i) => (
-                  <button
-                    key={r}
-                    className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
-                      i === 0 ? 'bg-white text-black' : 'text-ink-400 hover:text-white'
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            }
           />
-          <RevenueChart data={revenueSeries} />
-          <div className="mt-3 flex items-center justify-between border-t border-ink-800 pt-3">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-400">
-                <span className="h-1.5 w-4 bg-white" /> receita
-              </span>
-              <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500">
-                <span className="h-[1.5px] w-4 bg-ink-500" /> pedidos
-              </span>
-            </div>
-            <div className="w-28">
-              <OrdersLineChart data={revenueSeries} />
-            </div>
-          </div>
+          {hasSales ? <RevenueChart data={metrics.series} /> : <ChartEmpty message="sem pedidos nos últimos 30 dias" />}
         </Card>
 
         <div className="grid gap-3">
           <Card>
-            <CardHeader title="Métodos de pagamento" subtitle="distribuição · 30 dias" />
-            <MethodBars data={methodSplit} />
+            <CardHeader title="Métodos de pagamento" subtitle="distribuição dos pedidos pagos" />
+            {metrics.methodSplit.length ? (
+              <MethodBars data={metrics.methodSplit} />
+            ) : (
+              <EmptyState compact title="Sem pagamentos" hint="A distribuição aparece após o primeiro pedido pago." />
+            )}
           </Card>
           <Card>
             <CardHeader title="Mix de categorias" subtitle="participação na receita" />
-            <CategoryDonut data={categorySplit} />
+            {metrics.categorySplit.length ? (
+              <CategoryDonut data={metrics.categorySplit} />
+            ) : (
+              <EmptyState compact title="Sem receita por categoria" hint="Depende de produtos vendidos." />
+            )}
           </Card>
         </div>
       </section>
 
-      {/* TABELAS ------------------------------------------------------ */}
+      {/* vendas + checklist */}
       <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2" padded={false}>
           <div className="flex items-center justify-between px-5 pb-3 pt-5">
             <div>
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white">Últimas vendas</h2>
-              <p className="mt-1 text-[11.5px] text-ink-400">Pedidos processados pelo bot</p>
+              <p className="mt-1 text-[11.5px] text-ink-400">
+                {hasSales ? `${num(orders.data.length)} pedidos recebidos da API` : 'pedidos enviados pelo bot'}
+              </p>
             </div>
             <Link
-              to="/vendas"
+              to={`/app/${guildId}/vendas`}
               className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-300 transition-colors hover:text-white"
             >
               ver todas <ArrowUpRight size={11} />
             </Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-y border-ink-800 bg-ink-900/50">
-                  <th className="th">Pedido</th>
-                  <th className="th">Cliente</th>
-                  <th className="th">Produto</th>
-                  <th className="th">Método</th>
-                  <th className="th">Valor</th>
-                  <th className="th">Status</th>
-                  <th className="th">Quando</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.slice(0, 7).map((s) => (
-                  <tr key={s.id} className="border-b border-ink-800/70 transition-colors hover:bg-ink-850/70">
-                    <td className="td font-mono text-[11.5px] text-ink-300">{s.id}</td>
-                    <td className="td">
-                      <div className="flex items-center gap-2">
-                        <Avatar label={s.customer.slice(0, 1)} hue={s.avatarHue} size={24} />
-                        <span className="text-[12.5px] text-ink-100">{s.customer}</span>
-                      </div>
-                    </td>
-                    <td className="td max-w-[180px] truncate text-ink-300">{s.product}</td>
-                    <td className="td font-mono text-[11px] uppercase tracking-[0.08em] text-ink-400">
-                      {methodLabel[s.method]}
-                    </td>
-                    <td className="td font-mono text-[12px] text-white">{brl(s.amount)}</td>
-                    <td className="td">
-                      <StatusBadge status={s.status} label={statusLabel[s.status]} />
-                    </td>
-                    <td className="td text-[11.5px] text-ink-400">{relative(s.createdAt)}</td>
+
+          {orders.data.length === 0 ? (
+            <div className="px-5 pb-5">
+              <EmptyState
+                icon={<ShoppingCart size={16} />}
+                title="Nenhuma venda registrada"
+                hint="Quando o bot processar o primeiro pagamento, ele aparece aqui automaticamente."
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-y border-ink-800 bg-ink-900/50">
+                    <th className="th">Pedido</th>
+                    <th className="th">Cliente</th>
+                    <th className="th">Produto</th>
+                    <th className="th">Método</th>
+                    <th className="th">Valor</th>
+                    <th className="th">Status</th>
+                    <th className="th">Quando</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {orders.data.slice(0, 7).map((o) => (
+                    <tr key={o.id} className="border-b border-ink-800/70 transition-colors hover:bg-ink-850/70">
+                      <td className="td font-mono text-[11.5px] text-ink-300">{o.id}</td>
+                      <td className="td text-ink-100">{o.customerName}</td>
+                      <td className="td max-w-[180px] truncate text-ink-300">{o.productName}</td>
+                      <td className="td font-mono text-[11px] uppercase tracking-[0.08em] text-ink-400">
+                        {methodLabel[o.method]}
+                      </td>
+                      <td className="td font-mono text-[12px] text-white">{brl(o.amount)}</td>
+                      <td className="td">
+                        <StatusBadge status={o.status} label={statusLabel[o.status]} />
+                      </td>
+                      <td className="td text-[11.5px] text-ink-400">{relative(o.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
 
         <div className="grid gap-3">
           <Card>
-            <CardHeader title="Atividade" subtitle="eventos do bot" icon={<Clock3 size={14} />} />
+            <CardHeader
+              title="Checklist de ativação"
+              subtitle={`${completed} de ${checklist.length} concluído`}
+              icon={<CheckCircle2 size={14} />}
+            />
+            <div className="mb-3">
+              <Meter value={completed} max={checklist.length} />
+            </div>
             <ul className="space-y-0">
-              {activity.slice(0, 6).map((a, i) => (
-                <li key={i} className="group flex gap-3 border-b border-ink-800/70 py-2.5 last:border-0">
-                  <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 ${activityDot[a.kind]}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] text-ink-200 group-hover:text-white">{a.text}</p>
-                    <p className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-600">{a.time}</p>
-                  </div>
+              {checklist.map((c) => (
+                <li key={c.label} className="border-b border-ink-800/70 py-2.5 last:border-0">
+                  <Link to={c.to} className="group flex items-start gap-2.5">
+                    {c.done ? (
+                      <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-white" />
+                    ) : (
+                      <Circle size={13} className="mt-0.5 shrink-0 text-ink-600" />
+                    )}
+                    <div className="min-w-0">
+                      <p className={`text-[12px] ${c.done ? 'text-ink-400 line-through' : 'text-ink-100 group-hover:text-white'}`}>
+                        {c.label}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10.5px] text-ink-600">{c.detail}</p>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
           </Card>
 
           <Card>
-            <CardHeader title="Atenção necessária" icon={<CircleAlert size={14} />} />
-            <div className="space-y-2.5">
-              <Row
-                label={`${tickets.filter((t) => t.status !== 'resolvido').length} tickets abertos`}
-                hint="suporte"
-                to="/tickets"
-              />
-              <Row label={`${products.filter((p) => p.stock === 0).length} produtos sem estoque`} hint="catálogo" to="/produtos" />
-              <Row label="2 integrações pendentes" hint="setup" to="/integracoes" />
+            <CardHeader title="Resumo do servidor" subtitle="dados que você cadastrou" icon={<TicketPercent size={14} />} />
+            <div className="space-y-2">
+              {[
+                ['Produtos cadastrados', num(products.length), `/app/${guildId}/produtos`],
+                ['Cupons criados', num(coupons.length), `/app/${guildId}/cupons`],
+                ['Clientes (da API)', num(metrics.customers.length), `/app/${guildId}/clientes`],
+                ['Tickets abertos', num(metrics.orderCount ? 0 : 0), `/app/${guildId}/tickets`],
+              ].map(([label, value, to]) => (
+                <Link
+                  key={String(label)}
+                  to={String(to)}
+                  className="flex items-center justify-between border border-ink-700 bg-ink-850/40 px-3 py-2.5 transition-colors hover:border-white"
+                >
+                  <span className="text-[12px] text-ink-200">{label}</span>
+                  <span className="font-mono text-[12px] text-white">{value}</span>
+                </Link>
+              ))}
             </div>
+            <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-ink-600">
+              atualizado em {dateTime(new Date().toISOString())}
+            </p>
           </Card>
         </div>
       </section>
 
-      {/* TOP PRODUTOS ------------------------------------------------ */}
+      {/* top produtos */}
       <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
-            title="Top produtos por receita"
-            subtitle="ranking acumulado"
+            title="Produtos por receita"
+            subtitle="ranking calculado com as vendas reais"
             icon={<Package size={14} />}
             action={
-              <Link to="/produtos" className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-300 hover:text-white">
+              <Link
+                to={`/app/${guildId}/produtos`}
+                className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-300 hover:text-white"
+              >
                 gerenciar
               </Link>
             }
           />
-          <ul className="space-y-3.5">
-            {topProducts.map((p, i) => (
-              <li key={p.id}>
-                <div className="mb-1.5 flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="w-4 font-mono text-[10px] text-ink-600">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="text-[13px] text-white">{p.name}</span>
-                    <span className="hidden font-mono text-[9.5px] uppercase tracking-[0.1em] text-ink-500 sm:inline">
-                      {p.category}
+          {topProducts.length === 0 ? (
+            <EmptyState
+              icon={<Package size={16} />}
+              title="Nenhum produto cadastrado"
+              hint="Cadastre o que você vende para começar a acompanhar a receita por produto."
+              action={
+                <Link to={`/app/${guildId}/produtos`} className="btn-primary">
+                  Cadastrar produto
+                </Link>
+              }
+            />
+          ) : (
+            <ul className="space-y-3.5">
+              {topProducts.map((p, i) => (
+                <li key={p.id}>
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="w-4 font-mono text-[10px] text-ink-600">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="truncate text-[13px] text-white">{p.name}</span>
+                      <span className="hidden font-mono text-[9.5px] uppercase tracking-[0.1em] text-ink-500 sm:inline">
+                        {p.category}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11.5px] text-ink-200">
+                      {p.sold > 0 ? brl(p.revenue) : 'sem vendas'}
                     </span>
                   </div>
-                  <span className="font-mono text-[11.5px] text-ink-200">{brl(p.revenue)}</span>
-                </div>
-                <Meter value={p.revenue} max={maxProductRevenue} />
-              </li>
-            ))}
-          </ul>
+                  <Meter value={p.revenue} max={maxRevenue || 1} />
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <Card>
-          <CardHeader title="Saúde da operação" subtitle="monitor do bot" icon={<Radio size={14} />} />
-          <div className="space-y-3">
-            <HealthRow label="Latência do gateway" value={`${botStatus.ping} ms`} ok />
-            <HealthRow label="Uptime" value={botStatus.uptime} ok />
-            <HealthRow label="Comandos hoje" value={num(botStatus.commandsToday)} ok />
-            <HealthRow label="Canal de logs" value="pendente" ok={false} />
-            <HealthRow label="Webhook de pagamento" value="não configurado" ok={false} />
+          <CardHeader title="Integrações" subtitle="o que ainda falta ligar" icon={<Plug size={14} />} />
+          <div className="space-y-2">
+            {[
+              ['Discord OAuth2', !!guild],
+              ['Key de licença', keyVerified],
+              ['API do bot', apiState === 'ready'],
+              ['Canal de vendas', !!settings.salesChannel],
+              ['Canal de logs', !!settings.logsChannel],
+            ].map(([label, done]) => (
+              <div key={String(label)} className="flex items-center justify-between border-b border-ink-800 py-2 last:border-0">
+                <span className="flex items-center gap-2 text-[11.5px] text-ink-300">
+                  <span className={`h-1.5 w-1.5 ${done ? 'bg-white' : 'bg-ink-600'}`} />
+                  {label}
+                </span>
+                <span className={`font-mono text-[10.5px] uppercase tracking-[0.1em] ${done ? 'text-white' : 'text-ink-500'}`}>
+                  {done ? 'ok' : 'pendente'}
+                </span>
+              </div>
+            ))}
           </div>
-          <div className="mt-4 border border-ink-700 bg-ink-850/60 p-3">
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-ink-500">última sincronização</p>
-            <p className="mt-1 text-[12px] text-ink-200">{dateTime(new Date().toISOString())}</p>
-          </div>
+          <Link to={`/app/${guildId}/integracoes`} className="btn-ghost mt-3 w-full py-2">
+            abrir integrações <ArrowUpRight size={11} />
+          </Link>
         </Card>
       </section>
-    </div>
-  )
-}
-
-function Row({ label, hint, to }: { label: string; hint: string; to: string }) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center justify-between border border-ink-700 bg-ink-850/40 px-3 py-2.5 transition-colors hover:border-white"
-    >
-      <div className="flex items-center gap-2">
-        <Users size={12} className="text-ink-500" />
-        <span className="text-[12px] text-ink-200 group-hover:text-white">{label}</span>
-      </div>
-      <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-500">{hint}</span>
-    </Link>
-  )
-}
-
-function HealthRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
-  return (
-    <div className="flex items-center justify-between border-b border-ink-800 py-2 last:border-0">
-      <span className="flex items-center gap-2 text-[11.5px] text-ink-300">
-        <span className={`h-1.5 w-1.5 ${ok ? 'bg-white' : 'bg-ink-600'}`} />
-        {label}
-      </span>
-      <span className={`font-mono text-[11px] ${ok ? 'text-white' : 'text-ink-500'}`}>{value}</span>
     </div>
   )
 }

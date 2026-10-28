@@ -1,5 +1,5 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -9,73 +9,139 @@ import {
   MessagesSquare,
   Plug,
   Settings,
-  Search,
-  Bell,
   Menu,
   X,
-  Command,
-  ExternalLink,
+  ChevronsUpDown,
+  LogOut,
+  Server,
+  KeyRound,
+  Check,
+  CircleDot,
+  CircleDashed,
 } from 'lucide-react'
-import { botStatus, tickets } from '@/data/mock'
+import { useSession } from '@/lib/session'
+import { API_URL, useApiResource } from '@/lib/store'
+import { guildIcon, userAvatar, canManage } from '@/lib/discord'
+import type { Ticket } from '@/lib/store'
 
 const nav = [
-  { to: '/', label: 'Visão geral', icon: LayoutDashboard, end: true },
-  { to: '/vendas', label: 'Vendas', icon: ShoppingBag },
-  { to: '/produtos', label: 'Produtos', icon: Package },
-  { to: '/clientes', label: 'Clientes', icon: Users },
-  { to: '/cupons', label: 'Cupons', icon: TicketPercent },
-  { to: '/tickets', label: 'Tickets', icon: MessagesSquare, badge: tickets.filter((t) => t.status !== 'resolvido').length },
-  { to: '/integracoes', label: 'Integrações', icon: Plug, dot: true },
-  { to: '/configuracoes', label: 'Configurações', icon: Settings },
+  { path: '', label: 'Visão geral', icon: LayoutDashboard, end: true },
+  { path: 'vendas', label: 'Vendas', icon: ShoppingBag },
+  { path: 'produtos', label: 'Produtos', icon: Package },
+  { path: 'clientes', label: 'Clientes', icon: Users },
+  { path: 'cupons', label: 'Cupons', icon: TicketPercent },
+  { path: 'tickets', label: 'Tickets', icon: MessagesSquare },
+  { path: 'integracoes', label: 'Integrações', icon: Plug },
+  { path: 'configuracoes', label: 'Configurações', icon: Settings },
 ]
 
-function Logo() {
-  return (
-    <NavLink to="/" className="group flex items-center gap-3 px-5 py-5">
-      <div className="relative flex h-10 w-10 items-center justify-center border border-ink-600 bg-ink-850 transition-colors group-hover:border-white">
-        <img src="/assets/nesspay-mascot.png" alt="" className="h-7 w-7 object-contain saturate-0" />
-      </div>
-      <div className="leading-none">
-        <div className="font-display text-[22px] tracking-wide">
+export default function Layout() {
+  const { guildId } = useParams<{ guildId: string }>()
+  const { guilds, user, keyValue, signOut, resetKey } = useSession()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [switcher, setSwitcher] = useState(false)
+  const switcherRef = useRef<HTMLDivElement>(null)
+
+  const guild = guilds.find((g) => g.id === guildId) ?? null
+  const tickets = useApiResource<Ticket>('/tickets', guildId)
+  const openTickets = tickets.data.filter((t) => t.status !== 'resolvido').length
+  const icon = guildIcon(guild, 128)
+
+  const base = `/app/${guildId}`
+  const current = nav.find((n) => (n.end ? pathname === base || pathname === `${base}/` : pathname.startsWith(`${base}/${n.path}`)))
+
+  useEffect(() => setMobileOpen(false), [pathname])
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) setSwitcher(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  const sidebar = (onNavigate?: () => void) => (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2.5 px-5 py-5">
+        <div className="display-tight text-[19px]">
           <span className="chrome-type">NESS</span>
           <span className="text-white">PAY</span>
         </div>
-        <div className="mt-1 font-mono text-[8.5px] uppercase tracking-[0.34em] text-ink-500">application</div>
+        <div className="mt-1 font-mono text-[8px] uppercase tracking-[0.3em] text-ink-600">dashboard</div>
       </div>
-    </NavLink>
-  )
-}
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  return (
-    <div className="flex h-full flex-col">
-      <Logo />
-      <div className="mx-5 mb-5 border border-ink-700 bg-ink-900/60 p-3">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-500">gateway</span>
-          <span className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-white">
-            <span className="h-1.5 w-1.5 animate-pulse-dot bg-white" />
-            online
-          </span>
-        </div>
-        <div className="mt-2.5 flex items-end justify-between">
-          <div>
-            <div className="font-display text-[20px] leading-none text-white">{botStatus.ping} <span className="text-[11px] text-ink-400">ms</span></div>
-            <div className="mt-1 text-[9.5px] uppercase tracking-[0.1em] text-ink-500">latência</div>
+      {/* seletor de servidor */}
+      <div className="relative mx-3 mb-4" ref={switcherRef}>
+        <button
+          onClick={() => setSwitcher((v) => !v)}
+          className="flex w-full items-center gap-2.5 border border-ink-700 bg-ink-900/70 px-2.5 py-2.5 text-left transition-colors hover:border-ink-500"
+        >
+          {icon ? (
+            <img src={icon} alt="" className="h-8 w-8 shrink-0 border border-ink-600 object-cover" />
+          ) : (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center border border-ink-600 bg-ink-850 font-mono text-[10px] text-ink-300">
+              {(guild?.name ?? 'NP').slice(0, 2).toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] text-white">{guild?.name ?? 'Servidor local'}</p>
+            <p className="truncate font-mono text-[9px] uppercase tracking-[0.1em] text-ink-500">
+              {guild ? 'servidor gerenciado' : 'sem discord conectado'}
+            </p>
           </div>
-          <div className="text-right">
-            <div className="font-mono text-[11px] text-ink-200">{botStatus.uptime}</div>
-            <div className="mt-1 text-[9.5px] uppercase tracking-[0.1em] text-ink-500">uptime</div>
+          <ChevronsUpDown size={13} className="shrink-0 text-ink-500" />
+        </button>
+
+        {switcher && (
+          <div className="absolute left-0 right-0 top-full z-40 mt-1 border border-ink-600 bg-ink-950 shadow-[0_20px_50px_-20px_#000]">
+            <p className="border-b border-ink-800 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-ink-600">
+              seus servidores
+            </p>
+            <div className="max-h-56 overflow-y-auto">
+              {guilds.filter(canManage).length === 0 && (
+                <p className="px-3 py-3 text-[11px] text-ink-500">Nenhum servidor com permissão.</p>
+              )}
+              {guilds
+                .filter(canManage)
+                .map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => {
+                      setSwitcher(false)
+                      onNavigate?.()
+                      navigate(`/app/${g.id}`)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-ink-850"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center border border-ink-700 bg-ink-850 text-[8px] text-ink-300">
+                      {g.name.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-200">{g.name}</span>
+                    {g.id === guildId && <Check size={11} className="text-white" />}
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => {
+                setSwitcher(false)
+                onNavigate?.()
+                navigate('/servidores')
+              }}
+              className="flex w-full items-center gap-2 border-t border-ink-800 px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[0.1em] text-ink-400 transition-colors hover:bg-ink-850 hover:text-white"
+            >
+              <Server size={11} /> todos os servidores
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 no-scrollbar">
-        <p className="px-2 pb-2 pt-1 font-mono text-[9px] uppercase tracking-[0.22em] text-ink-600">operação</p>
         {nav.map((item) => (
           <NavLink
-            key={item.to}
-            to={item.to}
+            key={item.path}
+            to={item.path ? `${base}/${item.path}` : base}
             end={item.end}
             onClick={onNavigate}
             className={({ isActive }) =>
@@ -90,12 +156,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               <>
                 <item.icon size={15} strokeWidth={isActive ? 2.2 : 1.8} />
                 <span className="flex-1 font-medium tracking-wide">{item.label}</span>
-                {item.badge ? (
+                {item.path === 'tickets' && openTickets > 0 && (
                   <span className="border border-ink-500 bg-black px-1.5 py-0.5 font-mono text-[9.5px] text-white">
-                    {item.badge}
+                    {openTickets}
                   </span>
-                ) : null}
-                {item.dot ? <span className="h-1 w-1 animate-pulse-dot bg-white" /> : null}
+                )}
               </>
             )}
           </NavLink>
@@ -103,46 +168,56 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="border-t border-ink-800 p-3">
-        <a
-          href="https://discord.com/developers/applications"
-          target="_blank"
-          rel="noreferrer"
-          className="mb-2 flex items-center justify-between border border-ink-700 px-3 py-2.5 transition-colors hover:border-white"
+        <div className="mb-2 space-y-1.5 border border-ink-800 bg-ink-900/50 px-2.5 py-2">
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-600">status das conexões</p>
+          <StatusRow ok={!!guild} label="Discord" />
+          <StatusRow ok={!!keyValue} label={keyValue ? 'Key informada' : 'Key não informada'} />
+          <StatusRow ok={!!API_URL} label={API_URL ? 'API configurada' : 'API do bot'} />
+        </div>
+
+        <button
+          onClick={() => {
+            resetKey()
+            navigate('/chave')
+          }}
+          className="mb-1.5 flex w-full items-center gap-2 px-2 py-1.5 text-left font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500 transition-colors hover:text-white"
         >
-          <span className="text-[11px] uppercase tracking-[0.1em] text-ink-300">Developer Portal</span>
-          <ExternalLink size={12} className="text-ink-500" />
-        </a>
-        <div className="flex items-center gap-2.5 border border-ink-700 bg-ink-900/60 px-3 py-2.5">
-          <img src="/assets/nesspay-mascot.png" alt="" className="h-7 w-7 object-contain saturate-0" />
+          <KeyRound size={11} /> trocar key
+        </button>
+
+        <div className="flex items-center gap-2.5 border border-ink-700 bg-ink-900/60 px-2.5 py-2">
+          <img src={userAvatar(user, 64) ?? undefined} alt="" className="h-7 w-7 border border-ink-600 bg-ink-800 object-cover" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[12px] font-medium text-white">Ness</div>
-            <div className="truncate font-mono text-[9.5px] uppercase tracking-[0.1em] text-ink-500">owner · {botStatus.version}</div>
+            <p className="truncate text-[11.5px] text-white">{user ? (user.global_name ?? user.username) : 'Sessão local'}</p>
+            <p className="truncate font-mono text-[9px] uppercase tracking-[0.1em] text-ink-500">
+              {user ? `@${user.username}` : 'sem discord'}
+            </p>
           </div>
+          <button
+            onClick={() => {
+              signOut()
+              navigate('/entrar')
+            }}
+            className="shrink-0 text-ink-500 transition-colors hover:text-white"
+            aria-label="Sair"
+          >
+            <LogOut size={13} />
+          </button>
         </div>
       </div>
     </div>
   )
-}
-
-export default function Layout() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const { pathname } = useLocation()
-  useEffect(() => setMobileOpen(false), [pathname])
-
-  const title = nav.find((n) => (n.end ? pathname === n.to : pathname.startsWith(n.to)))?.label ?? 'Painel'
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar desktop */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[246px] border-r border-ink-800 bg-black/70 backdrop-blur-xl lg:block">
-        <SidebarContent />
+        {sidebar()}
       </aside>
 
-      {/* Sidebar mobile */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-[270px] animate-fade-up border-r border-ink-700 bg-black">
+          <aside className="absolute inset-y-0 left-0 w-[272px] animate-fade-up border-r border-ink-700 bg-black">
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute right-3 top-4 z-10 p-1.5 text-ink-400 hover:text-white"
@@ -150,13 +225,12 @@ export default function Layout() {
             >
               <X size={16} />
             </button>
-            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+            {sidebar(() => setMobileOpen(false))}
           </aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-[246px]">
-        {/* Topbar */}
         <header className="sticky top-0 z-20 border-b border-ink-800 bg-black/80 backdrop-blur-xl">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
             <button
@@ -168,48 +242,26 @@ export default function Layout() {
             </button>
 
             <div className="hidden min-w-0 items-baseline gap-3 sm:flex">
-              <h1 className="truncate font-display text-[19px] tracking-wide text-white">{title}</h1>
+              <h1 className="truncate font-display text-[15px] tracking-tight text-white">{current?.label ?? 'Painel'}</h1>
               <span className="hidden font-mono text-[10px] uppercase tracking-[0.16em] text-ink-600 md:block">
-                / {pathname === '/' ? 'home' : pathname.replace('/', '')}
+                {guild ? guild.name : 'servidor local'}
               </span>
             </div>
 
             <div className="ml-auto flex items-center gap-2">
-              <div className="relative hidden md:block">
-                <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
-                <input
-                  placeholder="Buscar pedido, cliente, ticket…"
-                  className="h-9 w-64 border border-ink-700 bg-ink-900/60 pl-8 pr-14 text-[12px] text-white placeholder:text-ink-500 outline-none transition-colors focus:border-white"
-                />
-                <span className="pointer-events-none absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 border border-ink-700 px-1.5 py-0.5 font-mono text-[9px] text-ink-500">
-                  <Command size={8} />K
+              <div className="hidden items-center gap-2 border border-ink-700 px-2.5 py-[7px] sm:flex">
+                <span className={`h-1.5 w-1.5 ${API_URL ? 'animate-pulse-dot bg-white' : 'bg-ink-500'}`} />
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-200">
+                  {API_URL ? 'api conectada' : 'api não configurada'}
                 </span>
               </div>
-
-              <button className="relative flex h-9 w-9 items-center justify-center border border-ink-700 text-ink-300 transition-colors hover:border-white hover:text-white">
-                <Bell size={14} />
-                <span className="absolute -right-[3px] -top-[3px] h-2 w-2 border border-black bg-white" />
+              <button
+                onClick={() => navigate('/servidores')}
+                className="flex items-center gap-1.5 border border-ink-700 px-2.5 py-[7px] font-mono text-[10px] uppercase tracking-[0.1em] text-ink-300 transition-colors hover:border-white hover:text-white"
+              >
+                <Server size={11} /> trocar servidor
               </button>
-
-              <div className="hidden items-center gap-2 border border-ink-700 px-2.5 py-[7px] sm:flex">
-                <span className="h-1.5 w-1.5 animate-pulse-dot bg-white" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-200">bot online</span>
-              </div>
             </div>
-          </div>
-
-          {/* faixa de status */}
-          <div className="flex items-center gap-4 overflow-hidden border-t border-ink-800/70 px-4 py-1.5 sm:px-6">
-            <span className="whitespace-nowrap font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink-600">
-              nesspay · painel interno
-            </span>
-            <span className="hidden h-1 w-1 bg-ink-700 sm:block" />
-            <span className="hidden whitespace-nowrap font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink-600 sm:block">
-              {botStatus.guilds} servidores · {botStatus.shards} shards
-            </span>
-            <span className="ml-auto whitespace-nowrap font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink-500">
-              ambiente: demonstração (dados mock)
-            </span>
           </div>
         </header>
 
@@ -220,10 +272,21 @@ export default function Layout() {
         <footer className="mt-4 border-t border-ink-800 px-4 py-5 sm:px-6">
           <div className="flex flex-col items-start justify-between gap-2 text-[10.5px] uppercase tracking-[0.12em] text-ink-600 sm:flex-row sm:items-center">
             <span>© {new Date().getFullYear()} NessPay — bot de vendas para Discord</span>
-            <span className="font-mono">build {botStatus.version} · painel v1.0</span>
+            <span className="font-mono">painel v1.0 · dados reais apenas</span>
           </div>
         </footer>
       </div>
+    </div>
+  )
+}
+
+function StatusRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {ok ? <CircleDot size={9} className="text-white" /> : <CircleDashed size={9} className="text-ink-600" />}
+      <span className={`font-mono text-[9.5px] uppercase tracking-[0.1em] ${ok ? 'text-ink-200' : 'text-ink-600'}`}>
+        {label}
+      </span>
     </div>
   )
 }
