@@ -15,6 +15,7 @@ import Coupons from '@/pages/Coupons'
 import Tickets from '@/pages/Tickets'
 import Integrations from '@/pages/Integrations'
 import SettingsPage from '@/pages/Settings'
+import Licenses from '@/pages/Licenses'
 
 function Loading() {
   return (
@@ -27,7 +28,6 @@ function Loading() {
   )
 }
 
-/** Exige Discord + Key verificada. */
 function RequireAccess({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, keyVerified } = useSession()
   const location = useLocation()
@@ -37,7 +37,6 @@ function RequireAccess({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Exige apenas Discord (usado na tela da Key). */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = useSession()
   if (!ready) return <Loading />
@@ -45,10 +44,6 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/**
- * O Discord pode devolver o token em qualquer rota (ex.: se você cadastrou
- * a raiz do site como redirect). Aqui garantimos que ele vá para o callback.
- */
 function AuthInterceptor() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -98,6 +93,7 @@ export default function App() {
         <Route path="clientes" element={<Customers />} />
         <Route path="cupons" element={<Coupons />} />
         <Route path="tickets" element={<Tickets />} />
+        <Route path="licencas" element={<Licenses />} />
         <Route path="integracoes" element={<Integrations />} />
         <Route path="configuracoes" element={<SettingsPage />} />
       </Route>

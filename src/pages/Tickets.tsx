@@ -2,37 +2,36 @@ import { useState } from 'react'
 import { MessagesSquare, RefreshCw } from 'lucide-react'
 import { Card, EmptyState, KV, Modal, StatCard, StatusBadge } from '@/components/ui'
 import { useGuild } from '@/lib/useGuild'
-import { API_URL } from '@/lib/store'
 import { dateTime, num, relative, statusLabel } from '@/lib/format'
 
 const filters = ['todos', 'aberto', 'aguardando', 'resolvido'] as const
 
 export default function Tickets() {
-  const { tickets } = useGuild()
+  const { tickets, state, error, reload } = useGuild()
   const [filter, setFilter] = useState<(typeof filters)[number]>('todos')
   const [selected, setSelected] = useState<string | null>(null)
 
-  const list = tickets.data.filter((t) => filter === 'todos' || t.status === filter)
-  const ticket = tickets.data.find((t) => t.id === selected)
+  const list = tickets.filter((t) => filter === 'todos' || t.status === filter)
+  const ticket = tickets.find((t) => t.id === selected)
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Abertos"
-          value={tickets.data.length ? num(tickets.data.filter((t) => t.status === 'aberto').length) : '—'}
+          value={tickets.length ? num(tickets.filter((t) => t.status === 'aberto').length) : '—'}
           hint="precisam de resposta"
-          muted={!tickets.data.length}
+          muted={!tickets.length}
         />
         <StatCard
           label="Aguardando cliente"
-          value={tickets.data.length ? num(tickets.data.filter((t) => t.status === 'aguardando').length) : '—'}
-          muted={!tickets.data.length}
+          value={tickets.length ? num(tickets.filter((t) => t.status === 'aguardando').length) : '—'}
+          muted={!tickets.length}
         />
         <StatCard
           label="Resolvidos"
-          value={tickets.data.length ? num(tickets.data.filter((t) => t.status === 'resolvido').length) : '—'}
-          muted={!tickets.data.length}
+          value={tickets.length ? num(tickets.filter((t) => t.status === 'resolvido').length) : '—'}
+          muted={!tickets.length}
         />
         <StatCard label="Tempo de resposta" value="—" hint="calculado pela API (ainda não disponível)" muted />
       </div>
@@ -49,12 +48,12 @@ export default function Tickets() {
             >
               {f === 'todos' ? 'todos' : statusLabel[f]}
               <span className="ml-1.5 opacity-60">
-                {f === 'todos' ? tickets.data.length : tickets.data.filter((t) => t.status === f).length}
+                {f === 'todos' ? tickets.length : tickets.filter((t) => t.status === f).length}
               </span>
             </button>
           ))}
         </div>
-        <button onClick={() => void tickets.reload()} className="btn-ghost py-1.5">
+        <button onClick={() => void reload()} className="btn-ghost py-1.5">
           <RefreshCw size={12} /> atualizar
         </button>
       </div>
@@ -64,13 +63,15 @@ export default function Tickets() {
           <div className="p-4">
             <EmptyState
               icon={<MessagesSquare size={16} />}
-              title={tickets.data.length ? 'Nenhum ticket nesse filtro' : 'Nenhum ticket aberto'}
+              title={tickets.length ? 'Nenhum ticket nesse filtro' : 'Nenhum ticket aberto'}
               hint={
-                tickets.data.length
+                tickets.length
                   ? 'Troque o filtro de status.'
-                  : API_URL
-                    ? 'A API está configurada mas não retornou tickets para este servidor.'
-                    : 'Os tickets chegam aqui quando o bot registrar os atendimentos na API.'
+                  : state === 'error'
+                    ? error ?? 'Erro ao consultar a API do bot.'
+                    : state === 'ready'
+                      ? 'Nenhum atendimento registrado neste servidor.'
+                      : 'Os tickets aparecem quando o bot registrar atendimentos no banco.'
               }
             />
           </div>

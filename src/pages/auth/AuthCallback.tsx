@@ -24,7 +24,6 @@ export default function AuthCallback() {
     ran.current = true
 
     const result = readAuthResponse()
-    // limpa a URL para o token não ficar visível/visitar de novo
     window.history.replaceState(null, '', '/auth/callback')
 
     if (result.error) {

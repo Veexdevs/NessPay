@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react'
 import { Download, Filter, Search, ShoppingBag, X } from 'lucide-react'
 import { Card, EmptyState, KV, Modal, StatCard, StatusBadge, useToast } from '@/components/ui'
 import { useGuild } from '@/lib/useGuild'
-import { API_URL, type OrderStatus } from '@/lib/store'
+import type { OrderStatus } from '@/lib/store'
 import { brl, compactMoney, dateTime, methodLabel, num, statusLabel } from '@/lib/format'
 
 const statusOptions: (OrderStatus | 'todos')[] = ['todos', 'pago', 'pendente', 'reembolsado', 'cancelado', 'expirado']
 const methodOptions = ['todos', 'pix', 'cartao', 'crypto', 'saldo'] as const
 
 export default function Sales() {
-  const { orders, guildId } = useGuild()
+  const { orders, guildId, state, error, reload } = useGuild()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('todos')
   const [method, setMethod] = useState<(typeof methodOptions)[number]>('todos')
@@ -18,7 +18,7 @@ export default function Sales() {
 
   const filtered = useMemo(
     () =>
-      orders.data.filter((o) => {
+      orders.filter((o) => {
         const term = q.toLowerCase()
         const matchQ =
           !term ||
@@ -28,12 +28,12 @@ export default function Sales() {
           o.customerId.includes(term)
         return matchQ && (status === 'todos' || o.status === status) && (method === 'todos' || o.method === method)
       }),
-    [orders.data, q, status, method],
+    [orders, q, status, method],
   )
 
   const paid = filtered.filter((o) => o.status === 'pago')
   const total = paid.reduce((s, o) => s + o.amount, 0)
-  const order = orders.data.find((o) => o.id === selected)
+  const order = orders.find((o) => o.id === selected)
 
   const exportCsv = () => {
     if (!filtered.length) {
@@ -58,23 +58,23 @@ export default function Sales() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Pedidos carregados" value={orders.data.length ? num(filtered.length) : '—'} hint={orders.data.length ? 'filtro atual' : 'nenhum pedido na API'} muted={!orders.data.length} />
+        <StatCard label="Pedidos carregados" value={orders.length ? num(filtered.length) : '—'} hint={orders.length ? 'filtro atual' : 'nenhum pedido na API'} muted={!orders.length} />
         <StatCard label="Receita filtrada" value={paid.length ? compactMoney(total) : '—'} hint={paid.length ? `${num(paid.length)} pagos` : 'sem pagamentos'} muted={!paid.length} />
         <StatCard
           label="Pendentes"
-          value={orders.data.length ? num(filtered.filter((o) => o.status === 'pendente').length) : '—'}
+          value={orders.length ? num(filtered.filter((o) => o.status === 'pendente').length) : '—'}
           hint="aguardando pagamento"
-          muted={!orders.data.length}
+          muted={!orders.length}
         />
         <StatCard
           label="Reembolsos"
-          value={orders.data.length ? num(filtered.filter((o) => o.status === 'reembolsado').length) : '—'}
+          value={orders.length ? num(filtered.filter((o) => o.status === 'reembolsado').length) : '—'}
           hint={
-            orders.data.length
+            orders.length
               ? brl(filtered.filter((o) => o.status === 'reembolsado').reduce((s, o) => s + o.amount, 0))
               : 'nada devolvido'
           }
-          muted={!orders.data.length}
+          muted={!orders.length}
         />
       </div>
 
@@ -124,7 +124,7 @@ export default function Sales() {
             <button onClick={exportCsv} className="btn-ghost py-1.5">
               <Download size={12} /> CSV
             </button>
-            <button onClick={() => void orders.reload()} className="btn-ghost py-1.5">
+            <button onClick={() => void reload()} className="btn-ghost py-1.5">
               atualizar
             </button>
           </div>
@@ -134,13 +134,15 @@ export default function Sales() {
           <div className="p-4">
             <EmptyState
               icon={<ShoppingBag size={16} />}
-              title={orders.data.length ? 'Nenhum pedido com esses filtros' : 'Nenhuma venda registrada'}
+              title={orders.length ? 'Nenhum pedido com esses filtros' : 'Nenhuma venda registrada'}
               hint={
-                orders.data.length
+                orders.length
                   ? 'Ajuste a busca ou os filtros de status e método.'
-                  : API_URL
-                    ? 'A API está configurada mas não retornou pedidos para este servidor.'
-                    : 'As vendas chegam aqui quando o bot estiver enviando pedidos para a API (VITE_API_URL).'
+                  : state === 'error'
+                    ? error ?? 'Erro ao consultar a API do bot.'
+                    : state === 'ready'
+                      ? 'Nenhum pedido registrado para este servidor até agora.'
+                      : 'As vendas aparecem quando o bot estiver enviando pedidos para a API.'
               }
             />
           </div>
@@ -189,10 +191,10 @@ export default function Sales() {
 
         <div className="flex items-center justify-between border-t border-ink-800 px-4 py-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-500">
-            {filtered.length} de {orders.data.length} pedidos
+            {filtered.length} de {orders.length} pedidos
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-600">
-            fonte: {orders.state === 'ready' ? 'api do bot' : 'sem conexão'}
+            fonte: {state === 'ready' ? 'api do bot' : state === 'loading' ? 'carregando' : 'sem conexão'}
           </span>
         </div>
       </Card>

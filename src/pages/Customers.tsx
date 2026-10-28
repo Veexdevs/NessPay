@@ -4,10 +4,9 @@ import { Card, EmptyState, KV, Modal, StatCard } from '@/components/ui'
 import { useGuild } from '@/lib/useGuild'
 import { brl, dateShort, num } from '@/lib/format'
 import { tierOf } from '@/lib/metrics'
-import { API_URL } from '@/lib/store'
 
 export default function Customers() {
-  const { metrics, orders } = useGuild()
+  const { metrics, orders, state } = useGuild()
   const [q, setQ] = useState('')
   const [tier, setTier] = useState<'todos' | 'vip' | 'recorrente' | 'novo'>('todos')
   const [selected, setSelected] = useState<string | null>(null)
@@ -24,7 +23,7 @@ export default function Customers() {
   )
 
   const customer = metrics.customers.find((c) => c.id === selected)
-  const history = orders.data.filter((o) => o.customerId === selected)
+  const history = orders.filter((o) => o.customerId === selected)
 
   return (
     <div className="space-y-4">
@@ -92,9 +91,9 @@ export default function Customers() {
               hint={
                 metrics.customers.length
                   ? 'Ajuste a busca ou o filtro de tier.'
-                  : API_URL
-                    ? 'A lista é montada a partir dos pedidos pagos que a API devolver.'
-                    : 'Os clientes aparecem automaticamente quando o bot enviar os pedidos para a API.'
+                  : state === 'error'
+                    ? 'Erro ao consultar a API do bot.'
+                    : 'Os clientes aparecem a partir dos pedidos pagos registrados pelo bot.'
               }
             />
           </div>

@@ -5,13 +5,14 @@ import { useGuild } from '@/lib/useGuild'
 import { dateShort, num, parseMoney } from '@/lib/format'
 
 export default function Coupons() {
-  const { coupons, addCoupon, updateCoupon, removeCoupon } = useGuild()
+  const { store, coupons, reload } = useGuild()
+  const { addCoupon, updateCoupon, removeCoupon } = store
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState({ code: '', type: 'percent' as 'percent' | 'fixed', value: '', maxUses: '', expiresAt: '' })
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const { toast, toastNode } = useToast()
 
-  const submit = () => {
+  const submit = async () => {
     if (!draft.code.trim()) {
       toast('Informe o código do cupom')
       return
@@ -25,16 +26,21 @@ export default function Coupons() {
       toast('Informe o valor do desconto')
       return
     }
-    addCoupon({
-      code: draft.code,
-      type: draft.type,
-      value,
-      maxUses: draft.maxUses ? Number(draft.maxUses.replace(/\D/g, '')) : null,
-      expiresAt: draft.expiresAt ? new Date(draft.expiresAt).toISOString() : null,
-    })
-    setDraft({ code: '', type: 'percent', value: '', maxUses: '', expiresAt: '' })
-    setOpen(false)
-    toast('Cupom criado')
+    try {
+      await addCoupon({
+        code: draft.code,
+        type: draft.type,
+        value,
+        maxUses: draft.maxUses ? Number(draft.maxUses.replace(/\D/g, '')) : null,
+        expiresAt: draft.expiresAt ? new Date(draft.expiresAt).toISOString() : null,
+      })
+      setDraft({ code: '', type: 'percent', value: '', maxUses: '', expiresAt: '' })
+      setOpen(false)
+      toast('Cupom criado')
+      await reload()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Falha ao criar cupom')
+    }
   }
 
   const active = coupons.filter((c) => c.active)
@@ -100,8 +106,9 @@ export default function Coupons() {
                 <Switch
                   checked={c.active}
                   onChange={(v) => {
-                    updateCoupon(c.id, { active: v })
-                    toast(v ? 'Cupom ativado' : 'Cupom desativado')
+                    void updateCoupon(c.id, { active: v })
+                      .then(() => toast(v ? 'Cupom ativado' : 'Cupom desativado'))
+                      .catch((error: Error) => toast(error.message))
                   }}
                 />
               </div>
@@ -174,7 +181,7 @@ export default function Coupons() {
             <button className="btn-ghost" onClick={() => setOpen(false)}>
               Cancelar
             </button>
-            <button className="btn-primary" onClick={submit}>
+            <button className="btn-primary" onClick={() => void submit()}>
               Criar cupom
             </button>
           </>
@@ -253,9 +260,12 @@ export default function Coupons() {
             <button
               className="btn-primary"
               onClick={() => {
-                if (confirmDelete) removeCoupon(confirmDelete)
+                const target = confirmDelete
                 setConfirmDelete(null)
-                toast('Cupom removido')
+                if (!target) return
+                void removeCoupon(target)
+                  .then(() => toast('Cupom removido'))
+                  .catch((error: Error) => toast(error.message))
               }}
             >
               Remover

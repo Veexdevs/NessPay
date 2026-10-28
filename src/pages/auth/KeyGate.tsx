@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ArrowRight, BadgeCheck, KeyRound, LogOut, ShieldQuestion } from 'lucide-react'
 import { useSession } from '@/lib/session'
 import { userAvatar } from '@/lib/discord'
+import { api, apiConfigured } from '@/lib/api'
 
 const KEY_PATTERN = /^[A-Z0-9]{4}(-[A-Z0-9]{4}){3}$/
 
@@ -11,6 +12,7 @@ export default function KeyGate() {
   const navigate = useNavigate()
   const [key, setKey] = useState('')
   const [checking, setChecking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = 'Verificar Key — NessPay'
@@ -21,14 +23,29 @@ export default function KeyGate() {
   const formatted = key.trim().toUpperCase()
   const looksValid = KEY_PATTERN.test(formatted)
 
-  const submit = () => {
+  const submit = async () => {
+    setError(null)
     setChecking(true)
-    // A validação da Key ainda não existe no backend:
-    // por isso qualquer valor (ou nenhum) libera o acesso nesta versão.
-    setTimeout(() => {
-      verifyKey(formatted || null)
-      navigate('/servidores', { replace: true })
-    }, 650)
+    if (!apiConfigured()) {
+      setTimeout(() => {
+        verifyKey(formatted || null)
+        navigate('/servidores', { replace: true })
+      }, 500)
+      return
+    }
+    try {
+      const result = await api.verifyLicense(formatted, user?.id ?? '')
+      if (result.valid) {
+        verifyKey(formatted)
+        navigate('/servidores', { replace: true })
+        return
+      }
+      setError(result.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível validar a Key agora.')
+    } finally {
+      setChecking(false)
+    }
   }
 
   return (
@@ -106,7 +123,9 @@ export default function KeyGate() {
                     const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16)
                     setKey(raw.replace(/(.{4})/g, '$1-').replace(/-$/, ''))
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void submit()
+                  }}
                   placeholder="XXXX-XXXX-XXXX-XXXX"
                   autoComplete="off"
                   spellCheck={false}
@@ -127,9 +146,14 @@ export default function KeyGate() {
               <p className="mt-1.5 font-mono text-[9.5px] uppercase tracking-[0.1em] text-ink-600">
                 formato esperado: 4 blocos de 4 caracteres
               </p>
+              {error && (
+                <p className="mt-2 border border-ink-600 bg-ink-850/70 px-2.5 py-2 text-[11.5px] leading-relaxed text-white">
+                  {error}
+                </p>
+              )}
             </div>
 
-            <button onClick={submit} disabled={checking} className="btn-primary mt-5 w-full">
+            <button onClick={() => void submit()} disabled={checking} className="btn-primary mt-5 w-full">
               {checking ? (
                 <>
                   <span className="h-1.5 w-1.5 animate-pulse-dot bg-black" /> verificando…
@@ -143,12 +167,12 @@ export default function KeyGate() {
 
             <div className="mt-4 border border-dashed border-ink-700 p-3">
               <p className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-400">
-                <ShieldQuestion size={11} /> validação ainda não implementada
+                <ShieldQuestion size={11} /> {apiConfigured() ? 'validação no bot ativa' : 'validação sem API'}
               </p>
               <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
-                Enquanto a API de licenças não existe, o botão libera o acesso mesmo com o campo vazio. Quando o
-                endpoint <span className="font-mono text-ink-300">POST /api/license/verify</span> estiver no ar, é só
-                trocar esta chamada e a Key passa a ser validada de verdade.
+                {apiConfigured()
+                  ? 'A Key é verificada na API do bot e precisa pertencer ao seu ID do Discord. Key de outra pessoa ou expirada é recusada.'
+                  : 'Sem VITE_API_URL o painel não tem como validar a Key, então qualquer valor libera o acesso. Configure a API do bot para a validação real.'}
               </p>
             </div>
 

@@ -3,11 +3,12 @@ import { Bot, KeyRound, Save, Webhook } from 'lucide-react'
 import { Card, CardHeader, KV, Switch, useToast } from '@/components/ui'
 import { useGuild } from '@/lib/useGuild'
 import { useSession } from '@/lib/session'
-import { API_URL } from '@/lib/store'
+import { API_BASE, apiConfigured } from '@/lib/api'
 import { guildIcon, userAvatar } from '@/lib/discord'
 
 export default function SettingsPage() {
-  const { settings, updateSettings, guild, guildId } = useGuild()
+  const { settings, store, guild, guildId, store: { source } } = useGuild()
+  const { updateSettings } = store
   const { user, keyValue, keyVerified, token } = useSession()
   const { toast, toastNode } = useToast()
   const [form, setForm] = useState(settings)
@@ -17,9 +18,13 @@ export default function SettingsPage() {
   const dirty = JSON.stringify(form) !== JSON.stringify(settings)
   const icon = guildIcon(guild, 128)
 
-  const save = () => {
-    updateSettings(form)
-    toast('Configurações salvas')
+  const save = async () => {
+    try {
+      await updateSettings(form)
+      toast(source === 'api' ? 'Configurações enviadas ao bot' : 'Configurações salvas neste navegador')
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Falha ao salvar')
+    }
   }
 
   return (
@@ -27,7 +32,7 @@ export default function SettingsPage() {
       {dirty && (
         <div className="flex items-center justify-between border border-white bg-white px-4 py-2.5 text-black">
           <span className="text-[11.5px] font-semibold uppercase tracking-[0.1em]">alterações não salvas</span>
-          <button onClick={save} className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.1em]">
+          <button onClick={() => void save()} className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.1em]">
             <Save size={11} /> salvar
           </button>
         </div>
@@ -88,7 +93,7 @@ export default function SettingsPage() {
                 inputMode="numeric"
               />
             </div>
-            <button className="btn-primary w-full" onClick={save}>
+            <button className="btn-primary w-full" onClick={() => void save()}>
               <Save size={13} /> Salvar configurações
             </button>
             <p className="text-[10.5px] leading-relaxed text-ink-600">
@@ -142,7 +147,7 @@ export default function SettingsPage() {
             <div className="mt-3">
               <KV k="Key" v={keyVerified ? (keyValue ? `${keyValue.slice(0, 4)}-••••-••••` : 'acesso sem key') : 'não informada'} />
               <KV k="Token Discord" v={token ? 'ativo nesta sessão' : 'nenhum'} />
-              <KV k="API" v={API_URL || 'não configurada'} />
+              <KV k="API" v={API_BASE || 'não configurada'} />
             </div>
           </Card>
         </div>

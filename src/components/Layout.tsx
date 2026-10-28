@@ -7,6 +7,7 @@ import {
   Users,
   TicketPercent,
   MessagesSquare,
+  KeyRound as KeyIcon,
   Plug,
   Settings,
   Menu,
@@ -20,9 +21,8 @@ import {
   CircleDashed,
 } from 'lucide-react'
 import { useSession } from '@/lib/session'
-import { API_URL, useApiResource } from '@/lib/store'
+import { api, apiConfigured } from '@/lib/api'
 import { guildIcon, userAvatar, canManage } from '@/lib/discord'
-import type { Ticket } from '@/lib/store'
 
 const nav = [
   { path: '', label: 'Visão geral', icon: LayoutDashboard, end: true },
@@ -31,6 +31,7 @@ const nav = [
   { path: 'clientes', label: 'Clientes', icon: Users },
   { path: 'cupons', label: 'Cupons', icon: TicketPercent },
   { path: 'tickets', label: 'Tickets', icon: MessagesSquare },
+  { path: 'licencas', label: 'Licenças', icon: KeyIcon },
   { path: 'integracoes', label: 'Integrações', icon: Plug },
   { path: 'configuracoes', label: 'Configurações', icon: Settings },
 ]
@@ -45,8 +46,26 @@ export default function Layout() {
   const switcherRef = useRef<HTMLDivElement>(null)
 
   const guild = guilds.find((g) => g.id === guildId) ?? null
-  const tickets = useApiResource<Ticket>('/tickets', guildId)
-  const openTickets = tickets.data.filter((t) => t.status !== 'resolvido').length
+  const [openTickets, setOpenTickets] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    if (!apiConfigured() || !guildId) {
+      setOpenTickets(0)
+      return
+    }
+    api
+      .tickets(guildId)
+      .then((rows) => {
+        if (active) setOpenTickets(rows.filter((row) => row.status !== 'resolvido').length)
+      })
+      .catch(() => {
+        if (active) setOpenTickets(0)
+      })
+    return () => {
+      active = false
+    }
+  }, [guildId, pathname])
   const icon = guildIcon(guild, 128)
 
   const base = `/app/${guildId}`
@@ -72,8 +91,7 @@ export default function Layout() {
         <div className="mt-1 font-mono text-[8px] uppercase tracking-[0.3em] text-ink-600">dashboard</div>
       </div>
 
-      {/* seletor de servidor */}
-      <div className="relative mx-3 mb-4" ref={switcherRef}>
+            <div className="relative mx-3 mb-4" ref={switcherRef}>
         <button
           onClick={() => setSwitcher((v) => !v)}
           className="flex w-full items-center gap-2.5 border border-ink-700 bg-ink-900/70 px-2.5 py-2.5 text-left transition-colors hover:border-ink-500"
@@ -172,7 +190,7 @@ export default function Layout() {
           <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-600">status das conexões</p>
           <StatusRow ok={!!guild} label="Discord" />
           <StatusRow ok={!!keyValue} label={keyValue ? 'Key informada' : 'Key não informada'} />
-          <StatusRow ok={!!API_URL} label={API_URL ? 'API configurada' : 'API do bot'} />
+          <StatusRow ok={apiConfigured()} label={apiConfigured() ? 'API do bot' : 'API não configurada'} />
         </div>
 
         <button
@@ -250,9 +268,9 @@ export default function Layout() {
 
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden items-center gap-2 border border-ink-700 px-2.5 py-[7px] sm:flex">
-                <span className={`h-1.5 w-1.5 ${API_URL ? 'animate-pulse-dot bg-white' : 'bg-ink-500'}`} />
+                <span className={`h-1.5 w-1.5 ${apiConfigured() ? 'animate-pulse-dot bg-white' : 'bg-ink-500'}`} />
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-200">
-                  {API_URL ? 'api conectada' : 'api não configurada'}
+                  {apiConfigured() ? 'api do bot' : 'api não configurada'}
                 </span>
               </div>
               <button

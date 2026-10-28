@@ -51,8 +51,7 @@
 }
 
 @layer components {
-  /* ---------- Tipografia ---------- */
-  .font-display {
+    .font-display {
     font-family: 'Unbounded', system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -90,8 +89,7 @@
     filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
   }
 
-  /* ---------- Superfícies ---------- */
-  .panel {
+    .panel {
     @apply relative rounded-none border border-ink-700 bg-ink-900/80 backdrop-blur-sm;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 40px -30px #000;
   }
@@ -120,8 +118,7 @@
     mix-blend-mode: overlay;
   }
 
-  /* ---------- Botões ---------- */
-  .btn {
+    .btn {
     @apply inline-flex items-center justify-center gap-2 border px-4 py-2.5 text-[12.5px] font-semibold uppercase tracking-[0.08em] transition-all duration-150 select-none;
   }
   .btn:active {
@@ -137,8 +134,7 @@
     @apply cursor-not-allowed opacity-40;
   }
 
-  /* ---------- Inputs ---------- */
-  .field {
+    .field {
     @apply w-full border border-ink-600 bg-black/60 px-3.5 py-2.5 text-sm text-white placeholder:text-ink-400 outline-none transition-colors focus:border-white;
   }
 
@@ -146,8 +142,7 @@
     @apply mb-1.5 block text-[10.5px] font-semibold uppercase tracking-[0.14em] text-ink-300;
   }
 
-  /* ---------- Tabela ---------- */
-  .th {
+    .th {
     @apply whitespace-nowrap px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.14em] text-ink-400;
   }
   .td {
@@ -172,7 +167,6 @@
   }
 }
 
-/* Recharts theming (monocromático) */
 .recharts-cartesian-axis-tick text {
   fill: #6f6f6f;
   font-size: 10px;

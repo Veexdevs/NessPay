@@ -19,8 +19,7 @@ export default function Servers() {
       <div className="pointer-events-none absolute inset-0 bg-grid [background-size:44px_44px] opacity-25" />
 
       <div className="relative mx-auto w-full max-w-5xl px-4 py-8">
-        {/* topo */}
-        <div className="mb-8 flex flex-col justify-between gap-4 border-b border-ink-800 pb-5 sm:flex-row sm:items-center">
+                <div className="mb-8 flex flex-col justify-between gap-4 border-b border-ink-800 pb-5 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <Link to="/servidores" className="display-tight text-[22px]">
               <span className="chrome-type">NESS</span>

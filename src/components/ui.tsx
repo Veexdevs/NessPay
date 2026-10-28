@@ -1,9 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { CircleSlash2, Info, TriangleAlert } from 'lucide-react'
 
-/* ------------------------------------------------------------------ */
-/* Card                                                                */
-/* ------------------------------------------------------------------ */
 export function Card({
   children,
   className = '',
@@ -45,9 +42,6 @@ export function CardHeader({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Badges / status                                                     */
-/* ------------------------------------------------------------------ */
 const statusStyles: Record<string, string> = {
   pago: 'border-white bg-white text-black',
   pendente: 'border-ink-400 bg-transparent text-ink-200',
@@ -77,9 +71,6 @@ export function StatusBadge({ status, label }: { status: string; label: string }
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* KPI                                                                 */
-/* ------------------------------------------------------------------ */
 export function StatCard({
   label,
   value,
@@ -110,9 +101,6 @@ export function StatCard({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Meter                                                               */
-/* ------------------------------------------------------------------ */
 export function Meter({ value, max = 100, className = '' }: { value: number; max?: number; className?: string }) {
   const ratio = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0
   return (
@@ -122,9 +110,6 @@ export function Meter({ value, max = 100, className = '' }: { value: number; max
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Toggle                                                              */
-/* ------------------------------------------------------------------ */
 export function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
@@ -145,9 +130,6 @@ export function Switch({ checked, onChange }: { checked: boolean; onChange: (v: 
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Empty state                                                         */
-/* ------------------------------------------------------------------ */
 export function EmptyState({
   title,
   hint,
@@ -177,9 +159,6 @@ export function EmptyState({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Banner                                                              */
-/* ------------------------------------------------------------------ */
 export function Banner({
   tone = 'info',
   title,
@@ -208,9 +187,6 @@ export function Banner({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Avatar                                                              */
-/* ------------------------------------------------------------------ */
 export function Avatar({
   label,
   src,
@@ -242,9 +218,6 @@ export function Avatar({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Modal                                                               */
-/* ------------------------------------------------------------------ */
 export function Modal({
   open,
   onClose,
@@ -305,9 +278,6 @@ export function Modal({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Toast                                                               */
-/* ------------------------------------------------------------------ */
 export function useToast() {
   const [msg, setMsg] = useState<string | null>(null)
   useEffect(() => {
@@ -323,9 +293,6 @@ export function useToast() {
   return { toast: setMsg, toastNode: node }
 }
 
-/* ------------------------------------------------------------------ */
-/* Copiar                                                              */
-/* ------------------------------------------------------------------ */
 export function CopyButton({ value, label = 'copiar' }: { value: string; label?: string }) {
   const [done, setDone] = useState(false)
   return (
