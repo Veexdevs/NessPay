@@ -1,5 +1,7 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '@/lib/session'
+import { hasAuthPayload } from '@/lib/discord'
 import Layout from '@/components/Layout'
 import Login from '@/pages/auth/Login'
 import AuthCallback from '@/pages/auth/AuthCallback'
@@ -43,9 +45,26 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/**
+ * O Discord pode devolver o token em qualquer rota (ex.: se você cadastrou
+ * a raiz do site como redirect). Aqui garantimos que ele vá para o callback.
+ */
+function AuthInterceptor() {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (pathname !== '/auth/callback' && hasAuthPayload()) {
+      navigate(`/auth/callback${window.location.search}${window.location.hash}`, { replace: true })
+    }
+  }, [pathname, navigate])
+  return null
+}
+
 export default function App() {
   return (
-    <Routes>
+    <>
+      <AuthInterceptor />
+      <Routes>
       <Route path="/entrar" element={<Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route
@@ -83,7 +102,8 @@ export default function App() {
         <Route path="configuracoes" element={<SettingsPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/entrar" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/entrar" replace />} />
+      </Routes>
+    </>
   )
 }

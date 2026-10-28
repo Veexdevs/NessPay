@@ -1,15 +1,34 @@
 /**
  * Integração real com o Discord (OAuth2 implicit grant, sem backend).
- * Para funcionar, defina VITE_DISCORD_CLIENT_ID no .env.
+ * Funciona em qualquer domínio (Vercel, localhost, preview) desde que o
+ * redirect URI usado aqui esteja registrado no Developer Portal.
  */
 
 export const DISCORD_API = 'https://discord.com/api/v10'
 
-export const CLIENT_ID = (import.meta.env.VITE_DISCORD_CLIENT_ID ?? '').trim()
+/**
+ * Client ID: usa VITE_DISCORD_CLIENT_ID quando existir e for válido.
+ * Se o build do Vercel não tiver a variável, cai no Client ID padrão do
+ * projeto — assim o login não quebra por causa de env var faltando.
+ */
+const ENV_CLIENT_ID = (import.meta.env.VITE_DISCORD_CLIENT_ID ?? '').trim()
+const FALLBACK_CLIENT_ID = '1561323387320668193'
+
+export const CLIENT_ID = /^\d{15,25}$/.test(ENV_CLIENT_ID) ? ENV_CLIENT_ID : FALLBACK_CLIENT_ID
+export const clientIdSource: 'env' | 'padrão' = /^\d{15,25}$/.test(ENV_CLIENT_ID) ? 'env' : 'padrão'
 
 export const oauthConfigured = () => /^\d{15,25}$/.test(CLIENT_ID)
 
-export const redirectUri = () => `${window.location.origin}/auth/callback`
+/**
+ * Redirect usado no login. Ordem de prioridade:
+ * 1. VITE_DISCORD_REDIRECT_URI (útil se você registrou outro caminho)
+ * 2. {origem atual}/auth/callback
+ */
+export const redirectUri = () => {
+  const fromEnv = (import.meta.env.VITE_DISCORD_REDIRECT_URI ?? '').trim()
+  if (fromEnv) return fromEnv
+  return `${window.location.origin}/auth/callback`
+}
 
 export interface DiscordUser {
   id: string
@@ -42,21 +61,78 @@ export function buildAuthUrl() {
   return `https://discord.com/oauth2/authorize?${params.toString()}`
 }
 
-export function readAuthResponse(): { token: string | null; error: string | null } {
-  const hash = window.location.hash.replace(/^#/, '')
-  if (!hash) return { token: null, error: null }
-  const params = new URLSearchParams(hash)
-  const error = params.get('error_description') ?? params.get('error')
-  const token = params.get('access_token')
+export interface AuthResult {
+  token: string | null
+  expiresIn: number | null
+  scope: string | null
+  error: string | null
+  errorDescription: string | null
+}
+
+/**
+ * O Discord devolve sucesso no fragmento (#access_token=…) e erros na
+ * query string (?error=…) — por isso lemos os dois.
+ */
+export function readAuthResponse(): AuthResult {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const search = new URLSearchParams(window.location.search)
+
+  const pick = (key: string) => hash.get(key) || search.get(key)
+
+  const error = pick('error')
+  const errorDescription = pick('error_description')
+  const token = hash.get('access_token') || search.get('access_token')
+
   if (token) {
     const expected = sessionStorage.getItem(STATE_KEY)
-    const state = params.get('state')
+    const state = pick('state')
     if (expected && state && expected !== state) {
-      return { token: null, error: 'Estado de autenticação inválido. Tente novamente.' }
+      return {
+        token: null,
+        expiresIn: null,
+        scope: null,
+        error: 'state_mismatch',
+        errorDescription: 'Estado de autenticação inválido. Tente entrar novamente.',
+      }
     }
     sessionStorage.removeItem(STATE_KEY)
   }
-  return { token, error }
+
+  const expiresIn = Number(pick('expires_in'))
+
+  return {
+    token,
+    expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : null,
+    scope: pick('scope'),
+    error: error ? decodeURIComponent(error) : null,
+    errorDescription: errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : null,
+  }
+}
+
+/** Há retorno de OAuth nesta URL? */
+export const hasAuthPayload = () => {
+  const url = `${window.location.search}${window.location.hash}`
+  return /(^|[?&#])(access_token|error)=/.test(url)
+}
+
+/** Traduz os erros mais comuns do Discord em algo acionável. */
+export function explainAuthError(error: string | null, description: string | null): string {
+  const detail = description ? ` (${description})` : ''
+  switch (error) {
+    case 'invalid_redirect_uri':
+    case 'redirect_uri_mismatch':
+      return `O redirect URI usado não está registrado no Developer Portal${detail}. Registre exatamente: ${redirectUri()}`
+    case 'invalid_client':
+      return `O Client ID ${CLIENT_ID} não foi reconhecido pelo Discord${detail}. Confira se ele pertence à sua aplicação.`
+    case 'invalid_scope':
+      return `Os escopos identify/guilds não estão habilitados na aplicação${detail}.`
+    case 'access_denied':
+      return 'Você cancelou a autorização no Discord. É preciso aceitar para usar o painel.'
+    case 'state_mismatch':
+      return description ?? 'Estado de autenticação inválido. Tente novamente.'
+    default:
+      return `${error ?? 'Erro desconhecido'}${detail}`
+  }
 }
 
 async function get<T>(path: string, token: string): Promise<T> {
@@ -65,6 +141,7 @@ async function get<T>(path: string, token: string): Promise<T> {
   })
   if (!res.ok) {
     if (res.status === 401) throw new Error('Sessão do Discord expirada. Entre novamente.')
+    if (res.status === 429) throw new Error('Muitas requisições ao Discord. Aguarde alguns segundos.')
     throw new Error(`Discord respondeu ${res.status}`)
   }
   return res.json() as Promise<T>
@@ -77,17 +154,23 @@ export const fetchGuilds = (token: string) => get<DiscordGuild[]>('/users/@me/gu
 /** ADMINISTRATOR (0x8) ou MANAGE_GUILD (0x20) ou ser o dono */
 export function canManage(guild: DiscordGuild) {
   if (guild.owner) return true
-  const perms = BigInt(guild.permissions || '0')
-  const ADMIN = 8n
-  const MANAGE_GUILD = 32n
-  return (perms & ADMIN) === ADMIN || (perms & MANAGE_GUILD) === MANAGE_GUILD
+  try {
+    const perms = BigInt(guild.permissions || '0')
+    return (perms & 8n) === 8n || (perms & 32n) === 32n
+  } catch {
+    return false
+  }
 }
 
 export function permissionLabel(guild: DiscordGuild) {
   if (guild.owner) return 'dono'
-  const perms = BigInt(guild.permissions || '0')
-  if ((perms & 8n) === 8n) return 'administrador'
-  if ((perms & 32n) === 32n) return 'gerenciar servidor'
+  try {
+    const perms = BigInt(guild.permissions || '0')
+    if ((perms & 8n) === 8n) return 'administrador'
+    if ((perms & 32n) === 32n) return 'gerenciar servidor'
+  } catch {
+    /* permissões inválidas */
+  }
   return 'sem permissão'
 }
 

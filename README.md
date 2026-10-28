@@ -44,9 +44,28 @@ Depois disso você cai em **`/app/:guildId/...`**, com o painel escopado naquele
 | Servidores e usuário | Discord OAuth2 (real) |
 | Vendas, clientes, tickets | `GET {VITE_API_URL}/orders` e `/tickets` — **vazio** até o backend existir |
 
+## Deploy no Vercel (login OAuth)
+
+O projeto já inclui `vercel.json` com rewrite de SPA — sem isso, `/auth/callback` retorna **404** no Vercel e o login "quebra" justamente depois de autorizar.
+
+Checklist para o login funcionar:
+
+1. **Deploy**: importe o repositório no Vercel (framework detectado: Vite → `npm run build`, saída `dist`). O `vercel.json` já cuida das rotas.
+2. **Redirect URI no Discord**: abra [Developer Portal](https://discord.com/developers/applications) → sua aplicação → **OAuth2** → *Redirects* e cadastre **exatamente**:
+   ```
+   https://SEU-PROJETO.vercel.app/auth/callback
+   ```
+   Sem barra no final, com `https`, domínio idêntico ao que você abre no navegador. Se você usa domínio próprio, cadastre também o do domínio próprio. Se usa as URLs de preview (`*-git-*.vercel.app`), cadastre cada uma.
+3. **Client ID**: por padrão o painel usa o Client ID embutido (`1561323387320668193`). Para trocar, defina `VITE_DISCORD_CLIENT_ID` em **Settings → Environment Variables** no Vercel e faça **Redeploy** (variáveis `VITE_*` entram no build, não em runtime).
+4. **Deployment Protection**: se estiver ligada (Settings → Deployment Protection), ela intercepta o redirect antes do React. Desligue para o domínio de produção ou use "Only Preview Deployments".
+
+A tela de login tem um bloco **"configuração do login"** que mostra o Client ID ativo e o redirect URI exato que está sendo enviado, com botão de copiar. Se o Discord recusar, a tela de erro mostra o código (`invalid_redirect_uri`, `invalid_client`, `access_denied`…) e o que fazer.
+
+> Se você registrou outro caminho (ex.: a raiz do site), defina `VITE_DISCORD_REDIRECT_URI` com a URL exata — o painel também aceita o token chegando em qualquer rota e redireciona sozinho para o callback.
+
 ## O que falta para ficar 100% real
 
-1. **Discord OAuth2**: crie a aplicação em [Developer Portal](https://discord.com/developers/applications), adicione o redirect `https://SEU-DOMINIO/auth/callback` e coloque o Client ID em `VITE_DISCORD_CLIENT_ID`.
+1. **Discord OAuth2**: crie a aplicação em [Developer Portal](https://discord.com/developers/applications), adicione o redirect exato do seu domínio e (opcionalmente) coloque o Client ID em `VITE_DISCORD_CLIENT_ID`.
 2. **Backend da API** com: `GET /orders`, `GET /tickets`, `POST /license/verify`, `POST /webhooks/pagamento`, CRUD de produtos/cupons no banco.
 3. **Banco** para sair do localStorage (produtos/cupons/configurações).
 4. **Gateway de pagamento** + webhook público HTTPS.
